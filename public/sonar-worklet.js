@@ -24,6 +24,59 @@ const FR_START = 19000;
 const FR_END = 20250;
 const F_FIREWALL_CUTOFF = 17500;
 
+// 3-Band Orthogonal FDMA Profiles (Zero cross-node ghosting even with unsynchronized clocks!)
+const NODE_PROFILES = {
+  SOLO_STEREO: {
+    fLStart: 17600,
+    fLEnd: 18850,
+    binLMinHz: 17550,
+    binLMaxHz: 18920,
+    fRStart: 19000,
+    fREnd: 20250,
+    binRMinHz: 18960,
+    binRMaxHz: 20320,
+    centerFreqHz: 18225,
+    monoSatellite: false,
+    maxRangeMeters: 3.0,
+    minTargetMeters: 0.32,
+    taperEndMeters: 0.44,
+    directScale: 1.0,
+  },
+  HOST_DUAL_STEREO: {
+    fLStart: 18580,
+    fLEnd: 19380,
+    binLMinHz: 18540,
+    binLMaxHz: 19420,
+    fRStart: 19540,
+    fREnd: 20340,
+    binRMinHz: 19500,
+    binRMaxHz: 20380,
+    centerFreqHz: 18980,
+    monoSatellite: false,
+    maxRangeMeters: 3.0,
+    minTargetMeters: 0.32,
+    taperEndMeters: 0.44,
+    directScale: 1.0,
+  },
+  // Calibrated for POCO M2 Pro: bottom mono Smart PA speaker + adjacent bottom primary mic (~2 cm spacing)
+  SATELLITE_MONO: {
+    fLStart: 17600,
+    fLEnd: 18420,
+    binLMinHz: 17560,
+    binLMaxHz: 18460,
+    fRStart: 17600,
+    fREnd: 18420,
+    binRMinHz: 17560,
+    binRMaxHz: 18460,
+    centerFreqHz: 18010,
+    monoSatellite: true,
+    maxRangeMeters: 2.6,
+    minTargetMeters: 0.36,
+    taperEndMeters: 0.48,
+    directScale: 0.15,
+  },
+};
+
 const MAX_RANGE_METERS = 3.0;
 const MIN_TARGET_METERS = 0.32; // Allows arm's-length desk seating (0.40m+) while skipping <32cm chassis peak
 const DELAY_FRAMES = 14; // ~0.60s lag @ 23.44 fps -> captures 1-3mm breathing & micro-postural phase shift
@@ -131,25 +184,21 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         : true;
     this.frameRate = this.fs / N;
     this.metersPerSample = SPEED_OF_SOUND / (2 * this.fs);
-    this.maxRangeBins = Math.min(900, Math.floor(MAX_RANGE_METERS / this.metersPerSample));
+    this.allocRangeBins = Math.min(900, Math.floor(MAX_RANGE_METERS / this.metersPerSample));
+    this.maxRangeBins = this.allocRangeBins;
     this.minTargetBin = Math.ceil(MIN_TARGET_METERS / this.metersPerSample);
-    this.taperEndBin = Math.ceil(0.44 / this.metersPerSample); // Gentle 32cm->44cm near-field taper
+    this.taperEndBin = Math.ceil(0.44 / this.metersPerSample);
     this.minPersonSepBins = Math.ceil(0.45 / this.metersPerSample);
-
-    const leftChirp = synthesizeChirp(this.fs, FL_START, FL_END);
-    const rightChirp = synthesizeChirp(this.fs, FR_START, FR_END);
-    this.txWaveL = leftChirp.wave;
-    this.txSpecLRe = leftChirp.specRe;
-    this.txSpecLIm = leftChirp.specIm;
-    this.txWaveR = rightChirp.wave;
-    this.txSpecRRe = rightChirp.specRe;
-    this.txSpecRIm = rightChirp.specIm;
-
     this.binFirewall = Math.min(HALF_N - 1, Math.ceil((F_FIREWALL_CUTOFF * N) / this.fs));
-    this.binLMin = Math.min(HALF_N - 1, Math.ceil((17550 * N) / this.fs));
-    this.binLMax = Math.min(HALF_N - 1, Math.floor((18920 * N) / this.fs));
-    this.binRMin = Math.min(HALF_N - 1, Math.ceil((18960 * N) / this.fs));
-    this.binRMax = Math.min(HALF_N - 1, Math.floor((20320 * N) / this.fs));
+
+    const initialProfile =
+      (options && options.processorOptions && options.processorOptions.nodeProfile) ||
+      'SOLO_STEREO';
+    this.nodeProfile = 'SOLO_STEREO';
+    this.monoSatellite = false;
+    this.centerFreqHz = 18225;
+    this.directScale = 1.0;
+    this.applyNodeProfile(initialProfile, true);
 
     this.rxBuf = new Float32Array(N);
     this.fftRe = new Float32Array(N);
@@ -160,43 +209,43 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     this.corrRIm = new Float32Array(N);
 
     // Slow static clutter (for IQ phase extraction & optional manual empty-room calibration)
-    this.clutterLRe = new Float32Array(this.maxRangeBins);
-    this.clutterLIm = new Float32Array(this.maxRangeBins);
-    this.clutterRRe = new Float32Array(this.maxRangeBins);
-    this.clutterRIm = new Float32Array(this.maxRangeBins);
+    this.clutterLRe = new Float32Array(this.allocRangeBins);
+    this.clutterLIm = new Float32Array(this.allocRangeBins);
+    this.clutterRRe = new Float32Array(this.allocRangeBins);
+    this.clutterRIm = new Float32Array(this.allocRangeBins);
     this.emptyCalibrated = false;
-    this.emptyRefLRe = new Float32Array(this.maxRangeBins);
-    this.emptyRefLIm = new Float32Array(this.maxRangeBins);
-    this.emptyRefRRe = new Float32Array(this.maxRangeBins);
-    this.emptyRefRIm = new Float32Array(this.maxRangeBins);
+    this.emptyRefLRe = new Float32Array(this.allocRangeBins);
+    this.emptyRefLIm = new Float32Array(this.allocRangeBins);
+    this.emptyRefRRe = new Float32Array(this.allocRangeBins);
+    this.emptyRefRIm = new Float32Array(this.allocRangeBins);
 
-    this.prevLRe = new Float32Array(this.maxRangeBins);
-    this.prevLIm = new Float32Array(this.maxRangeBins);
-    this.prevRRe = new Float32Array(this.maxRangeBins);
-    this.prevRIm = new Float32Array(this.maxRangeBins);
+    this.prevLRe = new Float32Array(this.allocRangeBins);
+    this.prevLIm = new Float32Array(this.allocRangeBins);
+    this.prevRRe = new Float32Array(this.allocRangeBins);
+    this.prevRIm = new Float32Array(this.allocRangeBins);
 
     // 14-frame (0.60s) Delay-Line Ring Buffer for calibration-free Micro-Doppler / Breathing detection
-    this.delayLRe = new Float32Array(DELAY_FRAMES * this.maxRangeBins);
-    this.delayLIm = new Float32Array(DELAY_FRAMES * this.maxRangeBins);
-    this.delayRRe = new Float32Array(DELAY_FRAMES * this.maxRangeBins);
-    this.delayRIm = new Float32Array(DELAY_FRAMES * this.maxRangeBins);
+    this.delayLRe = new Float32Array(DELAY_FRAMES * this.allocRangeBins);
+    this.delayLIm = new Float32Array(DELAY_FRAMES * this.allocRangeBins);
+    this.delayRRe = new Float32Array(DELAY_FRAMES * this.allocRangeBins);
+    this.delayRIm = new Float32Array(DELAY_FRAMES * this.allocRangeBins);
     this.delayPtr = 0;
     this.delayFilled = 0;
 
     // Sustained vital/micro-motion envelope (bridges inhale/exhale zero-velocity turnarounds)
-    this.vitalEnvL = new Float32Array(this.maxRangeBins);
-    this.vitalEnvR = new Float32Array(this.maxRangeBins);
-    this.torsoSmoothed = new Float32Array(this.maxRangeBins);
+    this.vitalEnvL = new Float32Array(this.allocRangeBins);
+    this.vitalEnvR = new Float32Array(this.allocRangeBins);
+    this.torsoSmoothed = new Float32Array(this.allocRangeBins);
     this.cfarSortBuf = new Float32Array(256);
 
     // Stereo ambient L/R equalization per range slice (cancels speaker placement & wood wall bias)
     this.lrRatioEst = 1.0;
 
-    this.ambientMag = new Float32Array(this.maxRangeBins);
-    this.staticMag = new Float32Array(this.maxRangeBins);
-    this.motionMag = new Float32Array(this.maxRangeBins);
-    this.scaledPresence = new Float32Array(this.maxRangeBins);
-    this.scaledMotion = new Float32Array(this.maxRangeBins);
+    this.ambientMag = new Float32Array(this.allocRangeBins);
+    this.staticMag = new Float32Array(this.allocRangeBins);
+    this.motionMag = new Float32Array(this.allocRangeBins);
+    this.scaledPresence = new Float32Array(this.allocRangeBins);
+    this.scaledMotion = new Float32Array(this.allocRangeBins);
     this.spectrumDb = new Float32Array(128);
     this.spatialGrid = new Float32Array(SPATIAL_R_SLICES * SPATIAL_AZ_BINS);
 
@@ -270,9 +319,61 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         this.targetGain = Math.max(0.05, Math.min(0.95, m.value));
       } else if (m.type === 'lock_range') {
         this.manualLockMeters = m.meters;
+      } else if (m.type === 'set_node_profile' && m.profile) {
+        if (m.profile !== this.nodeProfile) {
+          this.applyNodeProfile(m.profile, false);
+        }
       }
     };
     this.captureEmptyNext = false;
+  }
+
+  applyNodeProfile(profileName, isInit) {
+    const cfg = NODE_PROFILES[profileName] || NODE_PROFILES.SOLO_STEREO;
+    this.nodeProfile = NODE_PROFILES[profileName] ? profileName : 'SOLO_STEREO';
+    this.monoSatellite = Boolean(cfg.monoSatellite);
+    this.centerFreqHz = cfg.centerFreqHz;
+    this.directScale = cfg.directScale;
+    this.maxRangeBins = Math.min(
+      this.allocRangeBins,
+      Math.floor(cfg.maxRangeMeters / this.metersPerSample)
+    );
+    this.minTargetBin = Math.ceil(cfg.minTargetMeters / this.metersPerSample);
+    this.taperEndBin = Math.ceil(cfg.taperEndMeters / this.metersPerSample);
+
+    const leftChirp = synthesizeChirp(this.fs, cfg.fLStart, cfg.fLEnd);
+    this.txWaveL = leftChirp.wave;
+    this.txSpecLRe = leftChirp.specRe;
+    this.txSpecLIm = leftChirp.specIm;
+
+    if (this.monoSatellite) {
+      this.txWaveR = leftChirp.wave;
+      this.txSpecRRe = leftChirp.specRe;
+      this.txSpecRIm = leftChirp.specIm;
+    } else {
+      const rightChirp = synthesizeChirp(this.fs, cfg.fRStart, cfg.fREnd);
+      this.txWaveR = rightChirp.wave;
+      this.txSpecRRe = rightChirp.specRe;
+      this.txSpecRIm = rightChirp.specIm;
+    }
+
+    this.binLMin = Math.min(HALF_N - 1, Math.ceil((cfg.binLMinHz * N) / this.fs));
+    this.binLMax = Math.min(HALF_N - 1, Math.floor((cfg.binLMaxHz * N) / this.fs));
+    this.binRMin = Math.min(HALF_N - 1, Math.ceil((cfg.binRMinHz * N) / this.fs));
+    this.binRMax = Math.min(HALF_N - 1, Math.floor((cfg.binRMaxHz * N) / this.fs));
+
+    if (!isInit) {
+      this.directIdxL = -1;
+      this.directIdxR = -1;
+      this.clutterInitialized = false;
+      this.emptyCalibrated = false;
+      this.delayFilled = 0;
+      this.phaseInitialized = false;
+      this.resyncFrames = 10;
+      this.vitalEnvL.fill(0);
+      this.vitalEnvR.fill(0);
+      this.torsoSmoothed.fill(0);
+    }
   }
 
   process(inputs, outputs) {
@@ -282,13 +383,18 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     const inChan = inputs[0] && inputs[0][0];
     const blockLen = outL ? outL.length : 128;
     const wantChirp = this.mode === 'SONAR_LOCKED' ? this.targetGain : 0.0;
-    this.stereoActive = Boolean(outL && outR && this.stereoCapable);
+    this.stereoActive = Boolean(!this.monoSatellite && outL && outR && this.stereoCapable);
 
     for (let i = 0; i < blockLen; i++) {
       this.currentGain += 0.008 * (wantChirp - this.currentGain);
       const micSample = inChan ? inChan[i] : 0;
 
-      if (this.stereoActive) {
+      if (this.monoSatellite) {
+        // Full +6 dB coherent output on POCO M2 Pro's bottom mono Smart PA speaker
+        const mono = this.txWaveL[this.cursor] * this.currentGain;
+        if (outL) outL[i] = mono;
+        if (outR) outR[i] = mono;
+      } else if (this.stereoActive) {
         outL[i] = this.txWaveL[this.cursor] * this.currentGain;
         outR[i] = this.txWaveR[this.cursor] * this.currentGain;
       } else if (outL) {
@@ -448,39 +554,45 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       this.corrLRe[k] = 2 * w * (rxR * txR + rxI * txI);
       this.corrLIm[k] = 2 * w * (rxI * txR - rxR * txI);
     }
-    const spanR = Math.max(1, this.binRMax - this.binRMin);
-    for (let k = this.binRMin; k <= this.binRMax; k++) {
-      const w = 0.5 * (1 - Math.cos((2 * Math.PI * (k - this.binRMin)) / spanR));
-      const rxR = this.fftRe[k];
-      const rxI = this.fftIm[k];
-      const txR = this.txSpecRRe[k];
-      const txI = this.txSpecRIm[k];
-      this.corrRRe[k] = 2 * w * (rxR * txR + rxI * txI);
-      this.corrRIm[k] = 2 * w * (rxI * txR - rxR * txI);
-    }
-
     fftInPlace(this.corrLRe, this.corrLIm, true);
-    fftInPlace(this.corrRRe, this.corrRIm, true);
+
+    if (!this.monoSatellite) {
+      const spanR = Math.max(1, this.binRMax - this.binRMin);
+      for (let k = this.binRMin; k <= this.binRMax; k++) {
+        const w = 0.5 * (1 - Math.cos((2 * Math.PI * (k - this.binRMin)) / spanR));
+        const rxR = this.fftRe[k];
+        const rxI = this.fftIm[k];
+        const txR = this.txSpecRRe[k];
+        const txI = this.txSpecRIm[k];
+        this.corrRRe[k] = 2 * w * (rxR * txR + rxI * txI);
+        this.corrRIm[k] = 2 * w * (rxI * txR - rxR * txI);
+      }
+      fftInPlace(this.corrRRe, this.corrRIm, true);
+    }
 
     if (this.frameCount < 14) return;
 
-    if (this.directIdxL < 0 || this.directIdxR < 0) {
+    if (this.directIdxL < 0 || (!this.monoSatellite && this.directIdxR < 0)) {
       let bestL = -1, idxL = 0;
       let bestR = -1, idxR = 0;
       for (let n = 0; n < N; n++) {
         const mL = this.corrLRe[n] * this.corrLRe[n] + this.corrLIm[n] * this.corrLIm[n];
         if (mL > bestL) { bestL = mL; idxL = n; }
-        const mR = this.corrRRe[n] * this.corrRRe[n] + this.corrRIm[n] * this.corrRIm[n];
-        if (mR > bestR) { bestR = mR; idxR = n; }
+        if (!this.monoSatellite) {
+          const mR = this.corrRRe[n] * this.corrRRe[n] + this.corrRIm[n] * this.corrRIm[n];
+          if (mR > bestR) { bestR = mR; idxR = n; }
+        }
       }
       this.directIdxL = idxL;
-      this.directIdxR = idxR;
+      this.directIdxR = this.monoSatellite ? idxL : idxR;
     }
 
     const directMagL = Math.hypot(this.corrLRe[this.directIdxL], this.corrLIm[this.directIdxL]) + 1e-6;
-    const directMagR = Math.hypot(this.corrRRe[this.directIdxR], this.corrRIm[this.directIdxR]) + 1e-6;
+    const directMagR = this.monoSatellite
+      ? directMagL
+      : Math.hypot(this.corrRRe[this.directIdxR], this.corrRIm[this.directIdxR]) + 1e-6;
     const normFactorR = Math.max(0.35, Math.min(2.8, directMagL / directMagR));
-    const rightUsable = directMagR > directMagL * 0.10;
+    const rightUsable = !this.monoSatellite && directMagR > directMagL * 0.10;
 
     const resyncing = this.resyncFrames > 0;
     if (resyncing) {
@@ -529,13 +641,13 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       }
 
       // Read 0.60s delayed complex phasor BEFORE overwriting current ring slot
-      const ringBase = oldestSlot * this.maxRangeBins + m;
+      const ringBase = oldestSlot * this.allocRangeBins + m;
       const oldLR = delayReady ? this.delayLRe[ringBase] : zLR;
       const oldLI = delayReady ? this.delayLIm[ringBase] : zLI;
       const oldRR = delayReady ? this.delayRRe[ringBase] : zRR;
       const oldRI = delayReady ? this.delayRIm[ringBase] : zRI;
 
-      const writeBase = this.delayPtr * this.maxRangeBins + m;
+      const writeBase = this.delayPtr * this.allocRangeBins + m;
       this.delayLRe[writeBase] = zLR;
       this.delayLIm[writeBase] = zLI;
       this.delayRRe[writeBase] = zRR;
@@ -659,7 +771,10 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     }
     const subSlice = this.cfarSortBuf.subarray(0, sampleCount);
     subSlice.sort();
-    const cfarNoiseFloor = Math.max(subSlice[Math.floor(sampleCount * 0.45)], directMagL * 0.00035);
+    const cfarNoiseFloor = Math.max(
+      subSlice[Math.floor(sampleCount * 0.45)],
+      directMagL * 0.00035 * this.directScale
+    );
 
     // Multi-Person Non-Maximum Suppression (NMS) above +9.8 dB CFAR SNR + -17 dB sidelobe skirt gate
     let globalPeakSmoothed = 0;
@@ -871,7 +986,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
 
     // Update dominant 1D oscillation tangent axis (sign-consistent power iteration)
     const proj = dR * this.tanR + dI * this.tanI;
-    if (instPerturb > directMagL * 0.0002) {
+    if (instPerturb > directMagL * 0.0002 * this.directScale) {
       const sgn = proj >= 0 ? 1 : -1;
       this.tanR = 0.94 * this.tanR + 0.06 * sgn * (dR / instPerturb);
       this.tanI = 0.94 * this.tanI + 0.06 * sgn * (dI / instPerturb);
@@ -880,9 +995,9 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       this.tanI /= tNorm;
     }
 
-    const carrierRef = Math.max(this.iqAmpRms * 1.9, directMagL * 0.0025);
+    const carrierRef = Math.max(this.iqAmpRms * 1.9, directMagL * 0.0025 * this.directScale);
     const approxRad = Math.max(-2.2, Math.min(2.2, proj / carrierRef));
-    const wavelengthMm = (SPEED_OF_SOUND / 18225) * 1000;
+    const wavelengthMm = (SPEED_OF_SOUND / this.centerFreqHz) * 1000;
     const rawDispMm = (wavelengthMm / (4 * Math.PI)) * approxRad;
     this.unwrappedPhase = 0.72 * this.unwrappedPhase + 0.28 * rawDispMm;
     const displacementMm = this.unwrappedPhase;

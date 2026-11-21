@@ -1,4 +1,4 @@
-import type { RadarFrame } from '../types';
+import type { RadarFrame, SonarNodeProfile } from '../types';
 
 export interface ConsentListenResult {
   transcriptMl: string;
@@ -22,18 +22,22 @@ export class KaavalSonarEngine {
     this.onVoiceLevel = onVoiceLevel;
   }
 
-  async start(initialLockMeters = 0.85): Promise<{
+  async start(
+    initialLockMeters = 0.85,
+    nodeProfile: SonarNodeProfile = 'SOLO_STEREO'
+  ): Promise<{
     sampleRate: number;
     echoCancellation: boolean;
   }> {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error(
-        'Microphone API requires http://localhost or HTTPS (use /caregiver on LAN phones).'
+        'Microphone API requires https://<LAN-IP>:5443/satellite on Android Chrome or http://localhost.'
       );
     }
 
     if (this.audioCtx) {
       await this.audioCtx.resume();
+      this.setNodeProfile(nodeProfile);
       return { sampleRate: this.audioCtx.sampleRate, echoCancellation: false };
     }
 
@@ -50,15 +54,17 @@ export class KaavalSonarEngine {
     this.audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     await this.audioCtx.audioWorklet.addModule('/sonar-worklet.js');
 
-    const stereoCapable = this.audioCtx.destination.maxChannelCount >= 2;
+    const stereoCapable =
+      nodeProfile !== 'SATELLITE_MONO' && this.audioCtx.destination.maxChannelCount >= 2;
     const micSource = this.audioCtx.createMediaStreamSource(this.stream);
     this.workletNode = new AudioWorkletNode(this.audioCtx, 'kaaval-dual-worklet', {
       numberOfInputs: 1,
       numberOfOutputs: 1,
-      outputChannelCount: [stereoCapable ? 2 : 1],
+      outputChannelCount: [this.audioCtx.destination.maxChannelCount >= 2 ? 2 : 1],
       processorOptions: {
         sampleRate: this.audioCtx.sampleRate,
         stereoCapable,
+        nodeProfile,
       },
     });
 
@@ -104,6 +110,10 @@ export class KaavalSonarEngine {
 
   setWorkletMode(mode: 'SONAR_LOCKED' | 'VOICE_PAUSE' | 'VOICE_LISTEN') {
     this.workletNode?.port.postMessage({ type: 'set_mode', mode });
+  }
+
+  setNodeProfile(profile: SonarNodeProfile) {
+    this.workletNode?.port.postMessage({ type: 'set_node_profile', profile });
   }
 
   /**

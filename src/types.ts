@@ -23,6 +23,10 @@ export type SemanticPrimitive =
   | 'IMPACT_TRANSIENT'
   | 'POST_FALL_IMMOBILE';
 
+export type SonarNodeProfile = 'SOLO_STEREO' | 'HOST_DUAL_STEREO' | 'SATELLITE_MONO';
+
+export type SatelliteZone = 'BACK' | 'OPPOSITE' | 'LEFT' | 'RIGHT';
+
 export interface DetectedPerson {
   id: number;
   distanceMeters: number;
@@ -31,6 +35,26 @@ export interface DetectedPerson {
   z: number;
   snrDb: number;
   motion: number;
+  zone?: 'FRONT' | SatelliteZone;
+  source?: 'LAPTOP' | 'SATELLITE';
+}
+
+export interface SatelliteTelemetry {
+  nodeId: string;
+  deviceLabel: string;
+  zone: SatelliteZone;
+  armed: boolean;
+  sampleRate: number;
+  peopleCount: number;
+  targets: DetectedPerson[];
+  targetMeters: number;
+  displacementMm: number;
+  respirationBpm: number | null;
+  motionEnergy: number;
+  sonarDb: number;
+  primitives: SemanticPrimitive[];
+  rangeProfile: number[];
+  updatedAtMs: number;
 }
 
 export interface RadarFrame {
