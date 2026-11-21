@@ -2,8 +2,8 @@
  * KAAVAL v2 — Stereo FDMA 2D Spatial Ultrasonic Sonar & Consent-Gated PCM Worklet
  *
  * Stereo Spatial Physics:
- * - Left Speaker  (Channel 0): Linear FMCW chirp 18.05 kHz -> 19.75 kHz (Tukey-tapered)
- * - Right Speaker (Channel 1): Linear FMCW chirp 20.05 kHz -> 21.75 kHz (Tukey-tapered)
+ * - Left Speaker  (Channel 0): Linear FMCW chirp 17.60 kHz -> 18.85 kHz (Tukey-tapered)
+ * - Right Speaker (Channel 1): Linear FMCW chirp 19.00 kHz -> 20.25 kHz (Tukey-tapered)
  * - Frequency bands are 100% orthogonal in the same 2048-sample FFT window (zero Doppler skew).
  * - Independent direct-path calibration on L & R removes chassis mic-offset asymmetry.
  * - Fuses L/R Time-Difference-of-Arrival (TDOA) + normalized Stereo Intensity Balance (ILD)
@@ -121,6 +121,10 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       (options && options.processorOptions && options.processorOptions.sampleRate) ||
       sampleRate ||
       48000;
+    this.stereoCapable =
+      options && options.processorOptions
+        ? options.processorOptions.stereoCapable !== false
+        : true;
     this.frameRate = this.fs / N;
     this.metersPerSample = SPEED_OF_SOUND / (2 * this.fs);
     this.maxRangeBins = Math.min(900, Math.floor(MAX_RANGE_METERS / this.metersPerSample));
@@ -136,10 +140,10 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     this.txSpecRRe = rightChirp.specRe;
     this.txSpecRIm = rightChirp.specIm;
 
-    this.binFirewall = Math.ceil((F_FIREWALL_CUTOFF * N) / this.fs);
-    this.binLMin = Math.ceil((17550 * N) / this.fs);
-    this.binLMax = Math.floor((18920 * N) / this.fs);
-    this.binRMin = Math.ceil((18960 * N) / this.fs);
+    this.binFirewall = Math.min(HALF_N - 1, Math.ceil((F_FIREWALL_CUTOFF * N) / this.fs));
+    this.binLMin = Math.min(HALF_N - 1, Math.ceil((17550 * N) / this.fs));
+    this.binLMax = Math.min(HALF_N - 1, Math.floor((18920 * N) / this.fs));
+    this.binRMin = Math.min(HALF_N - 1, Math.ceil((18960 * N) / this.fs));
     this.binRMax = Math.min(HALF_N - 1, Math.floor((20320 * N) / this.fs));
 
     this.rxBuf = new Float32Array(N);
@@ -197,7 +201,8 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     this.unwrappedPhase = 0;
     this.lastRawPhase = 0;
     this.phaseInitialized = false;
-    this.stereoActive = true;
+    this.resyncFrames = 0;
+    this.stereoActive = this.stereoCapable;
 
     this.port.onmessage = (e) => {
       const m = e.data;
@@ -208,6 +213,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
           this.pcmSqSum = 0;
           this.resamplePhase = 0;
         } else if (m.mode === 'SONAR_LOCKED') {
+          this.resyncFrames = 8;
           this.phaseInitialized = false;
         }
       } else if (m.type === 'zero_clutter') {
@@ -232,17 +238,20 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     const inChan = inputs[0] && inputs[0][0];
     const blockLen = outL ? outL.length : 128;
     const wantChirp = this.mode === 'SONAR_LOCKED' ? this.targetGain : 0.0;
-    this.stereoActive = Boolean(outL && outR);
+    this.stereoActive = Boolean(outL && outR && this.stereoCapable);
 
     for (let i = 0; i < blockLen; i++) {
       this.currentGain += 0.008 * (wantChirp - this.currentGain);
       const micSample = inChan ? inChan[i] : 0;
 
-      if (outL && outR) {
+      if (this.stereoActive) {
         outL[i] = this.txWaveL[this.cursor] * this.currentGain;
         outR[i] = this.txWaveR[this.cursor] * this.currentGain;
       } else if (outL) {
-        outL[i] = 0.5 * (this.txWaveL[this.cursor] + this.txWaveR[this.cursor]) * this.currentGain;
+        const mono =
+          0.5 * (this.txWaveL[this.cursor] + this.txWaveR[this.cursor]) * this.currentGain;
+        outL[i] = mono;
+        if (outR) outR[i] = mono;
       }
 
       if (this.mode === 'VOICE_LISTEN') {
@@ -352,7 +361,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       this.spectrumDb[b] = 20 * Math.log10(meanAmp + 1e-9);
     }
 
-    // PRIVACY FIREWALL + DUAL ORTHOGONAL ANALYTIC MATCHED FILTERS (< 18.0 kHz strictly zeroed)
+    // PRIVACY FIREWALL + DUAL ORTHOGONAL ANALYTIC MATCHED FILTERS (< 17.5 kHz strictly zeroed)
     this.corrLRe.fill(0);
     this.corrLIm.fill(0);
     this.corrRRe.fill(0);
@@ -399,8 +408,8 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     const normFactorR = Math.max(0.4, Math.min(2.5, directMagL / directMagR));
     const rightUsable = directMagR > directMagL * 0.12;
 
-    // Faster initial clutter convergence in first 45 frames (~2s), then slow 0.005 so breathing stays strong
-    const clutterAlpha = !this.clutterInitialized ? 1.0 : this.frameCount < 60 ? 0.08 : 0.005;
+    const resyncing = this.resyncFrames > 0;
+    if (resyncing) this.resyncFrames--;
 
     let strongestScore = 0;
     let strongestBin = this.lockedBin;
@@ -424,10 +433,16 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         this.prevLRe[m] = zLR;    this.prevLIm[m] = zLI;
         this.prevRRe[m] = zRR;    this.prevRIm[m] = zRI;
       } else {
-        this.clutterLRe[m] += clutterAlpha * (zLR - this.clutterLRe[m]);
-        this.clutterLIm[m] += clutterAlpha * (zLI - this.clutterLIm[m]);
-        this.clutterRRe[m] += clutterAlpha * (zRR - this.clutterRRe[m]);
-        this.clutterRIm[m] += clutterAlpha * (zRI - this.clutterRIm[m]);
+        const binAlpha =
+          this.frameCount < 60
+            ? 0.08
+            : Math.abs(m - this.lockedBin) <= 14
+              ? 0.00025
+              : 0.0045;
+        this.clutterLRe[m] += binAlpha * (zLR - this.clutterLRe[m]);
+        this.clutterLIm[m] += binAlpha * (zLI - this.clutterLIm[m]);
+        this.clutterRRe[m] += binAlpha * (zRR - this.clutterRRe[m]);
+        this.clutterRIm[m] += binAlpha * (zRI - this.clutterRIm[m]);
       }
 
       if (m < this.minTargetBin) {
@@ -451,6 +466,13 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       const cLI = (zLI - this.clutterLIm[m]) * rangeWeight;
       const cRR = (zRR - this.clutterRRe[m]) * rangeWeight;
       const cRI = (zRI - this.clutterRIm[m]) * rangeWeight;
+
+      if (resyncing) {
+        this.prevLRe[m] = zLR;
+        this.prevLIm[m] = zLI;
+        this.prevRRe[m] = zRR;
+        this.prevRIm[m] = zRI;
+      }
 
       const dLR = (zLR - this.prevLRe[m]) * rangeWeight;
       const dLI = (zLI - this.prevLIm[m]) * rangeWeight;
@@ -484,6 +506,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     }
     this.clutterInitialized = true;
 
+    const prevLocked = this.lockedBin;
     if (this.manualLockMeters > 0.20) {
       this.lockedBin = Math.min(
         this.maxRangeBins - 1,
@@ -495,7 +518,6 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         this.lockedBin = Math.round(0.82 * this.lockedBin + 0.18 * strongestBin);
       } else if (strongestScore > directMagL * 0.02) {
         this.lockedBin = strongestBin;
-        this.phaseInitialized = false;
       }
     }
 
@@ -578,6 +600,8 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       this.lastRawPhase = rawPhase;
       this.unwrappedPhase = 0;
       this.phaseInitialized = true;
+    } else if (this.lockedBin !== prevLocked) {
+      this.lastRawPhase = rawPhase;
     } else {
       let dPhi = rawPhase - this.lastRawPhase;
       while (dPhi > Math.PI) dPhi -= 2 * Math.PI;
@@ -599,7 +623,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     // Calibrated motion scale: quiet cabin ≈ 0.08–0.35, normal walk ≈ 1.1–2.8, sudden slump/fall ≥ 4.5
     const meanMot = sumMotionAmp / Math.max(1, activeBinCount);
     const rawMot = ((peakMotionAmp * 0.55 + meanMot * 2.5) / directMagL) * 6.2;
-    const motionNorm = this.frameCount < 45 ? 0 : Math.max(0, rawMot - 0.12);
+    const motionNorm = this.frameCount < 45 || resyncing ? 0 : Math.max(0, rawMot - 0.12);
     const presenceNorm = (peakPresenceAmp / directMagL) * 5.0;
 
     const primitives = [];

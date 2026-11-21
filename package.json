@@ -6,7 +6,8 @@
   "scripts": {
     "postinstall": "mkdir -p public/mediapipe/wasm && cp -R node_modules/@mediapipe/tasks-vision/wasm/* public/mediapipe/wasm/",
     "dev:server": "tsx watch --env-file=.env server/index.ts",
-    "dev:client": "vite --port 5173",
+    "dev:client": "vite --host --port 5173",
+    "verify": "node scripts/verify-physics.mjs",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
