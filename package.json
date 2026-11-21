@@ -4,14 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "mkdir -p public/mediapipe/wasm && cp -R node_modules/@mediapipe/tasks-vision/wasm/* public/mediapipe/wasm/",
     "dev:server": "tsx watch --env-file=.env server/index.ts",
     "dev:client": "vite --host --port 5173",
     "verify": "node scripts/verify-physics.mjs",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.2.3",
     "express": "^4.21.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -8,7 +8,7 @@ import type {
   RadarFrame,
 } from '../types';
 import { RadarScopes } from './RadarScopes';
-import { IronbowSensorView } from './IronbowSensorView';
+import { SonicIronbowView } from './SonicIronbowView';
 import { SpatialField3D } from './SpatialField3D';
 import { TriageTimeline } from './TriageTimeline';
 import { BenchmarkPanel } from './BenchmarkPanel';
@@ -698,32 +698,12 @@ export const App: React.FC = () => {
         <main className="console-layout">
           <div>
             {viewMode === 'IRONBOW' ? (
-              <IronbowSensorView
+              <SonicIronbowView
                 latestFrameRef={latestFrameRef}
                 frameSeqRef={frameSeqRef}
                 guardMode={guardMode}
                 sonarArmed={sonarArmed}
                 snapshotGetterRef={snapshotGetterRef}
-                onVisualFallDetected={() => {
-                  const now = performance.now();
-                  if (
-                    autoTrigRef.current &&
-                    guardModeRef.current === 'ARMED_MONITORING' &&
-                    now >= cooldownUntilMsRef.current &&
-                    !prealertStateRef.current.active
-                  ) {
-                    prealertStateRef.current = {
-                      active: true,
-                      startedMs: now,
-                      peakMotion: Math.max(hudRef.current.motionEnergy, fallThreshold),
-                      distanceAtSpike: hudRef.current.distanceM,
-                      bpmBefore: hudRef.current.bpm,
-                      postMotions: [],
-                    };
-                    setPrealertLeftSec(4.0);
-                    setGuardMode('ANOMALY_PREALERT');
-                  }
-                }}
               />
             ) : (
               <SpatialField3D

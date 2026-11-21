@@ -1,8 +1,8 @@
 # Kaaval
 
-**Zero-Hardware Stereo Ultrasonic Sonar, Privacy-Preserving Edge Silhouette, and Consent-Gated Malayalam Voice Triage for Independent Elder Care.**
+**Zero-Hardware, Zero-Camera Stereo Ultrasonic Sonar, Sonic Ironbow Acoustic Imager, and Consent-Gated Malayalam Voice Triage for Independent Elder Care.**
 
-Kaaval turns an unmodified laptop or bedside tablet into a non-contact room safety monitor without wearables, bedroom CCTV, or always-listening cloud microphones. During routine monitoring, Kaaval senses range, 2D floor azimuth, fall kinematics, and sub-millimeter chest respiration strictly above `17.5 kHz` while discarding raw RGB camera frames on-device; audible speech capture opens only inside a bounded check-in window after a verified physical anomaly.
+Kaaval turns an unmodified laptop or bedside phone into a non-contact room safety instrument with **zero cameras** (MacBook hardware camera indicator LED stays strictly dark—zero `getUserMedia({ video })` anywhere in the codebase), zero wearables, and zero always-listening cloud microphones. During routine monitoring, Kaaval senses range, 2D floor azimuth, fall kinematics, and sub-millimeter chest respiration strictly above `17.5 kHz`; audible speech capture opens only inside a bounded check-in window after a verified physical anomaly.
 
 ---
 
@@ -18,11 +18,11 @@ Existing interventions fail adoption in Kerala homes for concrete operational re
 
 ---
 
-## 2. System Architecture & Dual-Modal Physics
+## 2. System Architecture & Acoustic Physics
 
 ```
 +-----------------------------------------------------------------------------------+
-| BROWSER EDGE RUNTIME (Zero Raw Audio/Video Egress During Monitoring)              |
+| BROWSER EDGE RUNTIME (Zero Camera Hardware · Zero Speech Egress During Monitoring)|
 |                                                                                   |
 |  [Stereo Speakers 48 kHz] ---> TX-L: 17.60-18.85 kHz  |  TX-R: 19.00-20.25 kHz    |
 |                                       (Orthogonal Tukey-Tapered Linear FMCW)      |
@@ -32,10 +32,9 @@ Existing interventions fail adoption in Kerala homes for concrete operational re
 |                                 |-- L/R TDOA + ILD -> 2D (X, Z) & 28x15 Field     |
 |                                 +-- Locked-Bin IQ Phase -> Sub-mm Chest BPM       |
 |                                                                                   |
-|  [Webcam 384x216 Offscreen] -> MediaPipe SelfieSegmenter + 5x5 Luma Box-Blur      |
-|                                 |-- Raw RGB Discarded Immediately in RAM          |
-|                                 |-- FLIR Ironbow Silhouette + Centroid Drop       |
-|                                 +-- Mean Luma < 0.045 -> Pure 20 kHz Sonar Mode   |
+|  [Sonic Ironbow Imager] -----> Bilinear Polar Backprojection (0 px Optical)       |
+|                                 |-- Cold Indigo: Static Room Clutter Envelope     |
+|                                 +-- Ironbow Gold/White: Human Echo + Chest Phase  |
 +-----------------------------------------+-----------------------------------------+
                                           | Physical Anomaly (Fall + Post-Spike
                                           | Stillness OR Prolonged Apnea)
@@ -55,9 +54,9 @@ Existing interventions fail adoption in Kerala homes for concrete operational re
 - **2D Spatial Localization & Range-Selective Clutter:** Independent direct-path peak calibration (`directIdxL`, `directIdxR`) removes chassis mic-to-speaker asymmetry, blanking `< 0.48 m` screen/table ringdown. Target azimuth fuses L/R Time-Difference-of-Arrival across the `28 cm` speaker baseline with normalized Stereo Intensity Balance into `(X, Z)` coordinates and a `28 x 15` polar acoustic grid. Clutter subtraction uses range-selective adaptation (`alpha = 0.00025` within `±14` bins of `lockedBin`, `0.0045` elsewhere) so a stationary breathing or fallen resident is never absorbed into background clutter, while an 8-frame post-TTS resync suppresses false motion spikes when resuming ultrasound.
 - **Coherent Sub-mm IQ Respiration:** Extracting complex clutter-removed baseband `IQ` at `lockedBin` yields phase sensitivity `(lambda / 4*pi) * dPhi` (`lambda ≈ 18.4–19.1 mm`), resolving `±0.2–3.0 mm` chest wall motion via phase unwrapping, continuous bin-step phase re-anchoring, and normalized autocorrelation (`10–30 BPM`).
 
-### Mode B: On-Device MediaPipe Ironbow Silhouette (`src/components/IronbowSensorView.tsx`)
-- **Zero-RGB Retention:** Offscreen `384x216` frames are segmented locally via `@mediapipe/tasks-vision` (`selfie_segmenter_landscape.tflite`), passed through a `5x5` luma box-blur to strip facial/text features, and mapped through a 256-stop Ironbow palette fused with 20 kHz sonar range/BPM telemetry. Raw RGB pixels are never rendered or transmitted.
-- **Automatic Zero-Lux Ultrasonic Fallback:** When room luminance drops below `meanLuma < 0.045` (lights extinguished at night, lens covered, or camera permission denied), Kaaval automatically switches to pure 20 kHz Ultrasonic Ironbow projection with uninterrupted fall and respiration sensing.
+### Sonic Ironbow Acoustic Imager (`src/components/SonicIronbowView.tsx`)
+- **100% Camera-Free Hardware Proof:** Zero `video` streams or vision models exist in the project—the laptop's hardware-wired green camera LED never illuminates, working identically in bright daylight or pitch-black bedrooms at 2 AM.
+- **Acoustic Ironbow Backprojection:** Maps real static room reflection clutter (`ambientClutterProfile`) to cold indigo/purple (`[0.03 .. 0.34]` on a 256-stop scientific Ironbow LUT) while rendering active stereo ultrasonic human reflections (`spatialGrid`, perspective-scaled `1/R` range, L/R azimuth, motion flare, and IQ chest respiration pulse) in glowing crimson, orange, gold, and incandescent yellow-white with a `-60 to 0 dB` scale bar.
 
 ---
 
@@ -68,7 +67,7 @@ Existing interventions fail adoption in Kerala homes for concrete operational re
 | **SoundWave** (*Gupta et al., CHI '12*) | Unmodified laptop `18–22 kHz` CW single-tone Doppler | Near-field gesture velocity only; **no absolute range** | No speech capture; no triage | Continuous-wave tone cannot separate target range, static multipath, or resting respiration. |
 | **ApneaApp** (*Nandakumar et al., MobiSys '15*) | Smartphone mono FMCW (`18–20 kHz`) | `0.3–1.0 m` 1D bedside chest range; **no 2D azimuth** | Sleep logging only; no voice agent | Mono channel lacks 2D `(X, Z)` TDOA/ILD localization, whole-room fall kinematics, and verbal check-in. |
 | **RuView / WiFi-CSI** (*Widar / ESP32-CSI*) | `2.4 / 5 GHz` OFDM Channel State Information | Through-wall multi-meter occupancy & gait | RF-only; no native voice loop | Requires custom CSI NIC firmware (`Nexmon` / ESP32 nodes); **impossible on stock consumer browsers**. |
-| **Kaaval** (*Ours*) | Stock browser Stereo FDMA FMCW (`17.6–20.25 kHz`) + Edge Silhouette | `0.48–3.0 m` range (`<1 cm` peak) + `±52 deg` 2D azimuth + IQ BPM | `<17.5 kHz` audio firewall + consent-gated Malayalam triage | Single-room line-of-sight acoustics; ultrasound reflects off closed doors/walls. |
+| **Kaaval** (*Ours*) | Stock browser Stereo FDMA FMCW (`17.6–20.25 kHz`, **0 Camera**) | `0.48–3.0 m` range (`<1 cm` peak) + `±52 deg` 2D azimuth + IQ BPM | `<17.5 kHz` audio firewall + consent-gated Malayalam triage | Single-room line-of-sight acoustics; ultrasound reflects off closed doors/walls. |
 
 ### Honest Physical Boundaries
 1. **Single-Room Acoustic Containment:** `17.6–20.25 kHz` acoustic waves do not penetrate closed wooden/masonry bathroom doors (`>35 dB` attenuation); one bedside or hall device covers a single `0.48 m – 3.0 m` room cone.

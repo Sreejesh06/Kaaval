@@ -166,6 +166,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
 
     this.cleanLAmp = new Float32Array(this.maxRangeBins);
     this.cleanRAmp = new Float32Array(this.maxRangeBins);
+    this.ambientMag = new Float32Array(this.maxRangeBins);
     this.staticMag = new Float32Array(this.maxRangeBins);
     this.motionMag = new Float32Array(this.maxRangeBins);
     this.spectrumDb = new Float32Array(128);
@@ -448,6 +449,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       if (m < this.minTargetBin) {
         this.cleanLAmp[m] = 0;
         this.cleanRAmp[m] = 0;
+        this.ambientMag[m] = 0;
         this.staticMag[m] = 0;
         this.motionMag[m] = 0;
         this.prevLRe[m] = zLR; this.prevLIm[m] = zLI;
@@ -461,6 +463,13 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         const u = (m - this.minTargetBin) / Math.max(1, this.taperEndBin - this.minTargetBin);
         rangeWeight *= 0.5 * (1 - Math.cos(Math.PI * u));
       }
+
+      // Static room structure reflection (walls, furniture, cabin woodwork)
+      this.ambientMag[m] =
+        0.5 *
+        (Math.hypot(this.clutterLRe[m], this.clutterLIm[m]) +
+          Math.hypot(this.clutterRRe[m], this.clutterRIm[m])) *
+        rangeWeight;
 
       const cLR = (zLR - this.clutterLRe[m]) * rangeWeight;
       const cLI = (zLI - this.clutterLIm[m]) * rangeWeight;
@@ -660,6 +669,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
       presenceRatio: presenceNorm,
       primitives,
       spectrumDb: this.spectrumDb.slice(),
+      ambientClutterProfile: this.ambientMag.slice(),
       clutterRemovedProfile: this.staticMag.slice(),
       motionProfile: this.motionMag.slice(),
       spatialGrid: this.spatialGrid.slice(),

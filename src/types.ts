@@ -45,6 +45,7 @@ export interface RadarFrame {
   presenceRatio: number;
   primitives: SemanticPrimitive[];
   spectrumDb: Float32Array;
+  ambientClutterProfile: Float32Array;
   clutterRemovedProfile: Float32Array;
   motionProfile: Float32Array;
   // 28 range slices x 15 azimuth beams (-52 deg .. +52 deg) volumetric floor field
