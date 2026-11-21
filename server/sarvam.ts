@@ -1,19 +1,240 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AnomalyTriggerReason, SarvamTraceStep } from '../src/types.js';
+import type { AnomalyTriggerReason, IndianLangCode, SarvamTraceStep } from '../src/types.js';
 
 const SARVAM_BASE = 'https://api.sarvam.ai';
 const DATA_DIR = path.resolve('data');
 const TTS_CACHE_FILE = path.join(DATA_DIR, 'tts-cache.json');
 
-export const CHECKIN_PROMPTS: Record<AnomalyTriggerReason, string> = {
-  FALL_IMPACT_AND_STILLNESS:
-    'അമ്മേ, പെട്ടെന്നൊരു വലിയ അനക്കം കണ്ടു. കുഴപ്പമൊന്നുമില്ലല്ലോ? സഹായം വേണമെങ്കിൽ പറയൂ.',
-  PROLONGED_ABSENCE_OF_RESPIRATION:
-    'അമ്മേ, കുറെ നേരമായി അനക്കമൊന്നും കാണുന്നില്ല. സുഖമാണോ? ഒന്ന് മറുപടി പറയൂ.',
-  MANUAL_VERIFICATION_TEST:
-    'അമ്മേ, സുഖമാണോ? എന്തെങ്കിലും സഹായം വേണമെങ്കിൽ ഇപ്പോൾ പറയാം.',
+export interface LangProfile {
+  code: IndianLangCode;
+  nameEn: string;
+  nativeName: string;
+  elderAddress: string;
+  prompts: Record<AnomalyTriggerReason, string>;
+  unresponsiveReply: string;
+  safeFallbackReply: string;
+  emergencyFallbackReply: string;
+  defaultCaregiverReassurance: string;
+  safeRegex: RegExp;
+}
+
+export const BHARAT_LANGUAGES: Record<IndianLangCode, LangProfile> = {
+  'ml-IN': {
+    code: 'ml-IN',
+    nameEn: 'Malayalam',
+    nativeName: 'മലയാളം',
+    elderAddress: 'അമ്മേ',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'അമ്മേ, പെട്ടെന്നൊരു വലിയ അനക്കം കണ്ടു. കുഴപ്പമൊന്നുമില്ലല്ലോ? സഹായം വേണമെങ്കിൽ പറയൂ.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'അമ്മേ, കുറെ നേരമായി അനക്കമൊന്നും കാണുന്നില്ല. സുഖമാണോ? ഒന്ന് മറുപടി പറയൂ.',
+      MANUAL_VERIFICATION_TEST:
+        'അമ്മേ, സുഖമാണോ? എന്തെങ്കിലും സഹായം വേണമെങ്കിൽ ഇപ്പോൾ പറയാം.',
+    },
+    unresponsiveReply:
+      'മറുപടി ലഭിച്ചില്ല. കുടുംബാംഗങ്ങളെ ഉടൻ വിവരമറിയിക്കുന്നു. പേടിക്കേണ്ട, സഹായം ഉടൻ എത്തും.',
+    safeFallbackReply: 'അമ്മേ, സന്തോഷം. സുഖമായി വിശ്രമിക്കൂ.',
+    emergencyFallbackReply: 'അമ്മേ, പേടിക്കേണ്ട. വിവരം കുടുംബാംഗങ്ങളെ ഉടൻ അറിയിച്ചിട്ടുണ്ട്.',
+    defaultCaregiverReassurance: 'അമ്മേ, പേടിക്കേണ്ട, ഞാൻ ഉടൻ സഹായം അയക്കുന്നുണ്ട്.',
+    safeRegex: /കുഴപ്പമില്ല|സുഖമാണ്|സാരമില്ല|fine|okay|ok\b/i,
+  },
+  'ta-IN': {
+    code: 'ta-IN',
+    nameEn: 'Tamil',
+    nativeName: 'தமிழ்',
+    elderAddress: 'அம்மா',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'அம்மா, திடீரென ஒரு பெரிய அசைவு தெரிந்தது. நீங்கள் நலமாக இருக்கிறீர்களா? உதவி வேண்டுமென்றால் சொல்லுங்கள்.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'அம்மா, சிறிது நேரமாக எந்த அசைவும் இல்லை. நலமாக இருக்கிறீர்களா? பதில் சொல்லுங்கள்.',
+      MANUAL_VERIFICATION_TEST:
+        'அம்மா, நீங்கள் நலமாக இருக்கிறீர்களா? ஏதாவது உதவி வேண்டுமென்றால் இப்போது சொல்லலாம்.',
+    },
+    unresponsiveReply:
+      'பதில் எதுவும் கிடைக்கவில்லை. குடும்பத்தினருக்கு உடனே தகவல் அனுப்பப்படுகிறது. கவலைப்படாதீர்கள், உதவி விரைவில் வரும்.',
+    safeFallbackReply: 'அம்மா, மிக்க மகிழ்ச்சி. நிம்மதியாக ஓய்வெடுங்கள்.',
+    emergencyFallbackReply: 'அம்மா, பயப்படாதீர்கள். குடும்பத்தினருக்கு உடனே தகவல் அனுப்பப்பட்டுள்ளது.',
+    defaultCaregiverReassurance: 'அம்மா, பயப்படாதீர்கள், நான் உடனே உதவியை அனுப்புகிறேன்.',
+    safeRegex: /பரவாயில்லை|நலமாக|நல்லா இருக்கேன்|ஒன்னுமில்ல|fine|okay|ok\b/i,
+  },
+  'hi-IN': {
+    code: 'hi-IN',
+    nameEn: 'Hindi',
+    nativeName: 'हिन्दी',
+    elderAddress: 'माँ जी',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'माँ जी, अभी अचानक तेज़ हलचल महसूस हुई। क्या आप ठीक हैं? अगर मदद चाहिए तो बताइए।',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'माँ जी, कुछ देर से कोई हलचल नहीं दिख रही है। क्या आप ठीक हैं? कृपया जवाब दीजिए।',
+      MANUAL_VERIFICATION_TEST:
+        'माँ जी, क्या आप ठीक हैं? अगर किसी मदद की ज़रूरत हो तो अभी बताइए।',
+    },
+    unresponsiveReply:
+      'कोई जवाब नहीं मिला। परिवार को तुरंत सूचना भेजी जा रही है। घबराइए मत, मदद तुरंत पहुँच रही है।',
+    safeFallbackReply: 'माँ जी, यह सुनकर अच्छा लगा। आराम से विश्राम कीजिए।',
+    emergencyFallbackReply: 'माँ जी, घबराइए मत। परिवार को तुरंत सूचना दे दी गई है।',
+    defaultCaregiverReassurance: 'माँ जी, चिंता मत कीजिए, मैं अभी तुरंत मदद भेज रहा हूँ।',
+    safeRegex: /ठीक हूँ|ठीक है|कोई बात नहीं|सब ठीक|fine|okay|ok\b/i,
+  },
+  'kn-IN': {
+    code: 'kn-IN',
+    nameEn: 'Kannada',
+    nativeName: 'ಕನ್ನಡ',
+    elderAddress: 'ಅಮ್ಮಾ',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'ಅಮ್ಮಾ, ಈಗ ತಾನೇ ಜೋರಾದ ಚಲನೆ ಕಂಡುಬಂದಿದೆ. ನೀವು ಕ್ಷೇಮವಾಗಿದ್ದೀರಾ? ಸಹಾಯ ಬೇಕಿದ್ದರೆ ಹೇಳಿ.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'ಅಮ್ಮಾ, ಸ್ವಲ್ಪ ಸಮಯದಿಂದ ಯಾವುದೇ ಚಲನೆ ಕಾಣುತ್ತಿಲ್ಲ. ನೀವು ಚೆನ್ನಾಗಿದ್ದೀರಾ? ದಯವಿಟ್ಟು ಉತ್ತರಿಸಿ.',
+      MANUAL_VERIFICATION_TEST:
+        'ಅಮ್ಮಾ, ನೀವು ಚೆನ್ನಾಗಿದ್ದೀರಾ? ಏನಾದರೂ ಸಹಾಯ ಬೇಕಿದ್ದರೆ ಈಗ ಹೇಳಬಹುದು.',
+    },
+    unresponsiveReply:
+      'ಯಾವುದೇ ಉತ್ತರ ಬಂದಿಲ್ಲ. ಕುಟುಂಬದವರಿಗೆ ತಕ್ಷಣ ಮಾಹಿತಿ ನೀಡಲಾಗುತ್ತಿದೆ. ಹೆದರಬೇಡಿ, ಸಹಾಯ ಶೀಘ್ರದಲ್ಲೇ ಬರುತ್ತದೆ.',
+    safeFallbackReply: 'ಅಮ್ಮಾ, ಸಂತೋಷ. ನೆಮ್ಮದಿಯಾಗಿ ವಿಶ್ರಾಂತಿ ತೆಗೆದುಕೊಳ್ಳಿ.',
+    emergencyFallbackReply: 'ಅಮ್ಮಾ, ಹೆದರಬೇಡಿ. ಕುಟುಂಬದವರಿಗೆ ತಕ್ಷಣ ತಿಳಿಸಲಾಗಿದೆ.',
+    defaultCaregiverReassurance: 'ಅಮ್ಮಾ, ಗಾಬರಿಯಾಗಬೇಡಿ, ನಾನು ಈಗಲೇ ಸಹಾಯ ಕಳುಹಿಸುತ್ತಿದ್ದೇನೆ.',
+    safeRegex: /ಚೆನ್ನಾಗಿದ್ದೇನೆ|ಪರವಾಗಿಲ್ಲ|ಏನಿಲ್ಲ|fine|okay|ok\b/i,
+  },
+  'te-IN': {
+    code: 'te-IN',
+    nameEn: 'Telugu',
+    nativeName: 'తెలుగు',
+    elderAddress: 'అమ్మా',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'అమ్మా, ఇప్పుడే పెద్ద కదలిక కనిపించింది. మీరు క్షేమంగా ఉన్నారా? సహాయం కావాలంటే చెప్పండి.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'అమ్మా, కొంతసేపటి నుండి కదలిక కనిపించడం లేదు. మీరు బాగున్నారా? దయచేసి బదులివ్వండి.',
+      MANUAL_VERIFICATION_TEST:
+        'అమ్మా, మీరు బాగున్నారా? ఏదైనా సహాయం కావాలంటే ఇప్పుడే చెప్పండి.',
+    },
+    unresponsiveReply:
+      'ఎలాంటి సమాధానం రాలేదు. కుటుంబ సభ్యులకు వెంటనే సమాచారం అందిస్తున్నాము. భయపడకండి, సహాయం వెంటనే వస్తుంది.',
+    safeFallbackReply: 'అమ్మా, సంతోషం. ప్రశాంతంగా విశ్రాంతి తీసుకోండి.',
+    emergencyFallbackReply: 'అమ్మా, కంగారు పడకండి. కుటుంబ సభ్యులకు వెంటనే సమాచారం అందించాము.',
+    defaultCaregiverReassurance: 'అమ్మా, భయపడకండి, నేను ఇప్పుడే సహాయం పంపిస్తున్నాను.',
+    safeRegex: /బాగున్నాను|పర్వాలేదు|ఏమీ లేదు|fine|okay|ok\b/i,
+  },
+  'bn-IN': {
+    code: 'bn-IN',
+    nameEn: 'Bengali',
+    nativeName: 'বাংলা',
+    elderAddress: 'মা',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'মা, হঠাৎ একটা বড় নড়াচড়া বোঝা গেছে। আপনি কি ঠিক আছেন? সাহায্য লাগলে বলুন।',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'মা, কিছুক্ষণ ধরে কোনো সাড়া পাওয়া যাচ্ছে না। আপনি কি ঠিক আছেন? দয়া করে উত্তর দিন।',
+      MANUAL_VERIFICATION_TEST:
+        'মা, আপনি কি ভালো আছেন? কোনো সাহায্য লাগলে এখন বলতে পারেন।',
+    },
+    unresponsiveReply:
+      'কোনো উত্তর পাওয়া যায়নি। পরিবারের সদস্যদের এক্ষুনি জানানো হচ্ছে। ভয় পাবেন না, সাহায্য আসছে।',
+    safeFallbackReply: 'মা, শুনে নিশ্চিন্ত হলাম। আরাম করে বিশ্রাম নিন।',
+    emergencyFallbackReply: 'মা, ভয় পাবেন না। পরিবারকে এক্ষুনি খবর দেওয়া হয়েছে।',
+    defaultCaregiverReassurance: 'মা, চিন্তা করবেন না, আমি এক্ষুনি সাহায্য পাঠাচ্ছি।',
+    safeRegex: /ঠিক আছি|ভালো আছি|কিছু হয়নি|fine|okay|ok\b/i,
+  },
+  'mr-IN': {
+    code: 'mr-IN',
+    nameEn: 'Marathi',
+    nativeName: 'मराठी',
+    elderAddress: 'आई',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'आई, आत्ताच अचानक मोठी हालचाल जाणवली. तुम्ही ठीक आहात का? मदत हवी असल्यास सांगा.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'आई, काही वेळापासून कोणतीही हालचाल दिसत नाही. तुम्ही ठीक आहात का? कृपया उत्तर द्या.',
+      MANUAL_VERIFICATION_TEST:
+        'आई, तुम्ही ठीक आहात का? काही मदत हवी असल्यास आता सांगा.',
+    },
+    unresponsiveReply:
+      'कोणतेही उत्तर मिळाले नाही. कुटुंबीयांना तात्काळ कळवले जात आहे. घाबरू नका, मदत लगेच पोहोचत आहे.',
+    safeFallbackReply: 'आई, ऐकून बरे वाटले. निवांत विश्रांती घ्या.',
+    emergencyFallbackReply: 'आई, घाबरू नका. कुटुंबीयांना लगेच कळवले आहे.',
+    defaultCaregiverReassurance: 'आई, काळजी करू नका, मी आत्ताच मदत पाठवत आहे.',
+    safeRegex: /ठीक आहे|काही नाही|बरी आहे|fine|okay|ok\b/i,
+  },
+  'gu-IN': {
+    code: 'gu-IN',
+    nameEn: 'Gujarati',
+    nativeName: 'ગુજરાતી',
+    elderAddress: 'બા',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'બા, હમણાં જ અચાનક મોટી હિલચાલ જણાઈ. તમે ઠીક છો ને? મદદ જોઈતી હોય તો કહો.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'બા, થોડા સમયથી કોઈ હિલચાલ દેખાતી નથી. તમે કુશળ છો ને? કૃપા કરીને જવાબ આપો.',
+      MANUAL_VERIFICATION_TEST:
+        'બા, તમે ઠીક છો ને? કોઈ મદદની જરૂર હોય તો અત્યારે કહો.',
+    },
+    unresponsiveReply:
+      'કોઈ જવાબ મળ્યો નથી. પરિવારજનોને તરત જ જાણ કરવામાં આવી રહી છે. ગભરાશો નહીં, મદદ તરત પહોંચે છે.',
+    safeFallbackReply: 'બા, જાણીને આનંદ થયો. આરામથી વિશ્રામ કરો.',
+    emergencyFallbackReply: 'બા, ગભરાશો નહીં. પરિવારને તરત જાણ કરી દેવામાં આવી છે.',
+    defaultCaregiverReassurance: 'બા, ચિંતા કરશો નહીં, હું હમણાં જ મદદ મોકલું છું.',
+    safeRegex: /ઠીક છું|બરાબર|કંઈ નથી|fine|okay|ok\b/i,
+  },
+  'pa-IN': {
+    code: 'pa-IN',
+    nameEn: 'Punjabi',
+    nativeName: 'ਪੰਜਾਬੀ',
+    elderAddress: 'ਬੀਜੀ',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'ਬੀਜੀ, ਹੁਣੇ ਅਚਾਨਕ ਤੇਜ਼ ਹਲਚਲ ਮਹਿਸੂਸ ਹੋਈ। ਕੀ ਤੁਸੀਂ ਠੀਕ ਹੋ? ਮਦਦ ਚਾਹੀਦੀ ਹੋਵੇ ਤਾਂ ਦੱਸੋ।',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'ਬੀਜੀ, ਕੁਝ ਦੇਰ ਤੋਂ ਕੋਈ ਹਲਚਲ ਨਹੀਂ ਦਿਖ ਰਹੀ। ਕੀ ਤੁਸੀਂ ਠੀਕ ਹੋ? ਕਿਰਪਾ ਕਰਕੇ ਜਵਾਬ ਦਿਓ।',
+      MANUAL_VERIFICATION_TEST:
+        'ਬੀਜੀ, ਕੀ ਤੁਸੀਂ ਠੀਕ ਹੋ? ਜੇ ਕੋਈ ਮਦਦ ਚਾਹੀਦੀ ਹੈ ਤਾਂ ਹੁਣੇ ਦੱਸੋ।',
+    },
+    unresponsiveReply:
+      'ਕੋਈ ਜਵਾਬ ਨਹੀਂ ਮਿਲਿਆ। ਪਰਿਵਾਰ ਨੂੰ ਤੁਰੰਤ ਸੂਚਿਤ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ। ਘਬਰਾਓ ਨਾ, ਮਦਦ ਤੁਰੰਤ ਪਹੁੰਚ ਰਹੀ ਹੈ।',
+    safeFallbackReply: 'ਬੀਜੀ, ਸੁਣ ਕੇ ਖੁਸ਼ੀ ਹੋਈ। ਆਰਾਮ ਨਾਲ ਵਿਸ਼ਰਾਮ ਕਰੋ।',
+    emergencyFallbackReply: 'ਬੀਜੀ, ਘਬਰਾਓ ਨਾ। ਪਰਿਵਾਰ ਨੂੰ ਤੁਰੰਤ ਦੱਸ ਦਿੱਤਾ ਗਿਆ ਹੈ।',
+    defaultCaregiverReassurance: 'ਬੀਜੀ, ਚਿੰਤਾ ਨਾ ਕਰੋ, ਮੈਂ ਹੁਣੇ ਮਦਦ ਭੇਜ ਰਿਹਾ ਹਾਂ।',
+    safeRegex: /ਠੀਕ ਹਾਂ|ਠੀਕ ਹੈ|ਕੋਈ ਗੱਲ ਨਹੀਂ|fine|okay|ok\b/i,
+  },
+  'en-IN': {
+    code: 'en-IN',
+    nameEn: 'English (India)',
+    nativeName: 'English',
+    elderAddress: 'Amma',
+    prompts: {
+      FALL_IMPACT_AND_STILLNESS:
+        'Amma, a sudden impact was detected in the room. Are you alright? Please speak if you need help.',
+      PROLONGED_ABSENCE_OF_RESPIRATION:
+        'Amma, there has been no movement for a while. Are you doing okay? Please answer.',
+      MANUAL_VERIFICATION_TEST:
+        'Amma, checking in on you. Please tell me if you are fine or if you need assistance.',
+    },
+    unresponsiveReply:
+      'No spoken response detected. Alerting your family right away. Please stay calm, help is on the way.',
+    safeFallbackReply: 'Glad to hear you are safe, Amma. Please rest comfortably.',
+    emergencyFallbackReply: 'Stay calm Amma, your family has been alerted immediately.',
+    defaultCaregiverReassurance: 'Amma stay calm, I am sending help to you right away.',
+    safeRegex: /\b(i am fine|i'm fine|all good|no problem|doing okay|im okay|okay|fine)\b/i,
+  },
 };
+
+export const CHECKIN_PROMPTS = BHARAT_LANGUAGES['ml-IN'].prompts;
+
+export function resolveLangCode(code?: string | null): IndianLangCode {
+  if (code && code in BHARAT_LANGUAGES) {
+    return code as IndianLangCode;
+  }
+  return 'ml-IN';
+}
+
+export function getCheckinPrompt(trigger: AnomalyTriggerReason, lang?: string | null): string {
+  const prof = BHARAT_LANGUAGES[resolveLangCode(lang)];
+  return prof.prompts[trigger] || prof.prompts.FALL_IMPACT_AND_STILLNESS;
+}
 
 let ttsCache: Record<string, string> = {};
 if (fs.existsSync(TTS_CACHE_FILE)) {
@@ -31,7 +252,7 @@ function saveTtsCache() {
 
 export const sarvamStats = {
   calls: 0,
-  creditGuardLocked: true, // Default LOCKED during dev so zero credits leak accidentally!
+  creditGuardLocked: true,
   byModel: {} as Record<string, number>,
 };
 
@@ -46,7 +267,11 @@ function getApiKey(): string {
   return k;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 9500): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = 9500
+): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -56,31 +281,39 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 9500
   }
 }
 
-export async function synthesizeMalayalam(text: string): Promise<{
+export async function synthesizeSpeech(
+  text: string,
+  langCode: IndianLangCode = 'ml-IN'
+): Promise<{
   audioBase64: string;
   trace: SarvamTraceStep;
 }> {
-  if (ttsCache[text]) {
+  const resolved = resolveLangCode(langCode);
+  const cacheKey = `${resolved}::${text}`;
+  const legacyHit = resolved === 'ml-IN' ? ttsCache[text] : undefined;
+  const cachedAudio = ttsCache[cacheKey] || legacyHit;
+
+  if (cachedAudio) {
     return {
-      audioBase64: ttsCache[text],
+      audioBase64: cachedAudio,
       trace: {
         model: 'bulbul:v3 (cached)',
         endpoint: 'DISK CACHE (0 credits)',
         latencyMs: 1,
-        detail: `Served cached Malayalam MP3 (${text.length} chars)`,
+        detail: `Served cached ${resolved} MP3 (${text.length} chars)`,
       },
     };
   }
 
   if (sarvamStats.creditGuardLocked) {
-    const fallbackAudio = Object.values(ttsCache)[0] || '';
+    const fallbackAudio = legacyHit || (resolved === 'ml-IN' ? Object.values(ttsCache)[0] || '' : '');
     return {
       audioBase64: fallbackAudio,
       trace: {
         model: 'CREDIT-GUARD (0 cr)',
         endpoint: 'LOCAL BYPASS',
         latencyMs: 0,
-        detail: 'Outbound Bulbul TTS blocked to preserve hackathon credits',
+        detail: `Bulbul TTS (${resolved}) paused in 0-credit mode — unlock Sarvam Live for ${BHARAT_LANGUAGES[resolved].nameEn} audio`,
       },
     };
   }
@@ -94,7 +327,7 @@ export async function synthesizeMalayalam(text: string): Promise<{
     },
     body: JSON.stringify({
       text,
-      target_language_code: 'ml-IN',
+      target_language_code: resolved,
       model: 'bulbul:v3',
       speaker: 'simran',
       pace: 0.96,
@@ -110,8 +343,8 @@ export async function synthesizeMalayalam(text: string): Promise<{
   const audioBase64 = data.audios?.[0] || '';
   recordCall('bulbul:v3');
 
-  if (audioBase64 && text.length < 220) {
-    ttsCache[text] = audioBase64;
+  if (audioBase64 && text.length < 240) {
+    ttsCache[cacheKey] = audioBase64;
     saveTtsCache();
   }
 
@@ -121,15 +354,32 @@ export async function synthesizeMalayalam(text: string): Promise<{
       model: 'bulbul:v3',
       endpoint: 'POST /text-to-speech',
       latencyMs: Date.now() - t0,
-      detail: `Synthesized ml-IN MP3 (${Math.round((audioBase64.length * 0.75) / 1024)} KB)`,
+      detail: `Synthesized ${resolved} (${BHARAT_LANGUAGES[resolved].nameEn}) MP3 (${Math.round((audioBase64.length * 0.75) / 1024)} KB)`,
     },
   };
 }
 
-export async function translateMalayalamToEnglish(textMl: string): Promise<{
+export const synthesizeMalayalam = (text: string) => synthesizeSpeech(text, 'ml-IN');
+
+export async function translateToEnglish(
+  inputText: string,
+  sourceLang: IndianLangCode
+): Promise<{
   translatedText: string;
   trace: SarvamTraceStep;
 }> {
+  if (sourceLang === 'en-IN') {
+    return {
+      translatedText: inputText,
+      trace: {
+        model: 'sarvam-translate:v1 (passthrough)',
+        endpoint: 'en-IN direct',
+        latencyMs: 0,
+        detail: `Input already in English ("${inputText.slice(0, 64)}")`,
+      },
+    };
+  }
+
   const t0 = Date.now();
   const res = await fetchWithTimeout(`${SARVAM_BASE}/translate`, {
     method: 'POST',
@@ -138,8 +388,8 @@ export async function translateMalayalamToEnglish(textMl: string): Promise<{
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      input: textMl,
-      source_language_code: 'ml-IN',
+      input: inputText,
+      source_language_code: sourceLang,
       target_language_code: 'en-IN',
       model: 'sarvam-translate:v1',
     }),
@@ -157,7 +407,7 @@ export async function translateMalayalamToEnglish(textMl: string): Promise<{
       model: 'sarvam-translate:v1',
       endpoint: 'POST /translate',
       latencyMs: Date.now() - t0,
-      detail: `ml-IN -> en-IN ("${json.translated_text.slice(0, 64)}")`,
+      detail: `${sourceLang} -> en-IN ("${json.translated_text.slice(0, 64)}")`,
     },
   };
 }
@@ -170,8 +420,8 @@ export function pcm16ToWavBuffer(pcm16: Buffer, sampleRate = 16000): Buffer {
   header.write('WAVE', 8);
   header.write('fmt ', 12);
   header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); // PCM
-  header.writeUInt16LE(1, 22); // Mono
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
   header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(sampleRate * 2, 28);
   header.writeUInt16LE(2, 32);
@@ -181,15 +431,19 @@ export function pcm16ToWavBuffer(pcm16: Buffer, sampleRate = 16000): Buffer {
   return Buffer.concat([header, pcm16]);
 }
 
-export async function transcribeFallbackRest(pcm16: Buffer): Promise<{
+export async function transcribeFallbackRest(
+  pcm16: Buffer,
+  langOrUnknown = 'ml-IN'
+): Promise<{
   transcript: string;
+  detectedLang?: IndianLangCode;
   trace: SarvamTraceStep;
 }> {
   const t0 = Date.now();
   const wav = pcm16ToWavBuffer(pcm16, 16000);
   const form = new FormData();
   form.append('file', new Blob([new Uint8Array(wav)], { type: 'audio/wav' }), 'consent_window.wav');
-  form.append('language_code', 'ml-IN');
+  form.append('language_code', langOrUnknown);
   form.append('model', 'saaras:v3');
 
   const res = await fetchWithTimeout(`${SARVAM_BASE}/speech-to-text`, {
@@ -201,20 +455,22 @@ export async function transcribeFallbackRest(pcm16: Buffer): Promise<{
   if (!res.ok) {
     throw new Error(`Saaras REST fallback HTTP ${res.status}: ${await res.text()}`);
   }
-  const data = (await res.json()) as { transcript?: string };
+  const data = (await res.json()) as { transcript?: string; language_code?: string };
   recordCall('saaras:v3');
+  const detectedLang = data.language_code ? resolveLangCode(data.language_code) : undefined;
   return {
     transcript: (data.transcript || '').trim(),
+    detectedLang,
     trace: {
       model: 'saaras:v3 (REST fallback)',
       endpoint: 'POST /speech-to-text',
       latencyMs: Date.now() - t0,
-      detail: `Recovered transcript from ${Math.round(pcm16.length / 32000 * 10) / 10}s PCM buffer`,
+      detail: `Recovered ${detectedLang || langOrUnknown} transcript from ${Math.round((pcm16.length / 32000) * 10) / 10}s PCM`,
     },
   };
 }
 
-export function sanitizeClosingMalayalam(text: string): string {
+export function sanitizeClosingReply(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return trimmed;
 
@@ -235,11 +491,14 @@ export function sanitizeClosingMalayalam(text: string): string {
 export async function triageCheckinResponse(params: {
   trigger: AnomalyTriggerReason;
   transcriptMl: string;
+  elderLang?: IndianLangCode;
   distanceMeters: number;
   peakMotionEnergy: number;
   respirationBpmBefore: number | null;
   sttTrace?: SarvamTraceStep;
 }): Promise<{
+  elderLang: IndianLangCode;
+  elderLangLabel: string;
   transcriptEn: string;
   classification: 'SAFE' | 'EMERGENCY' | 'UNRESPONSIVE';
   clinicalSummaryEn: string;
@@ -248,44 +507,59 @@ export async function triageCheckinResponse(params: {
   traces: SarvamTraceStep[];
   offlineFallback?: boolean;
 }> {
+  const langCode = resolveLangCode(params.elderLang);
+  const prof = BHARAT_LANGUAGES[langCode];
   const traces: SarvamTraceStep[] = [];
   if (params.sttTrace) traces.push(params.sttTrace);
 
   const cleaned = params.transcriptMl.trim();
 
   if (sarvamStats.creditGuardLocked) {
-    const isSafe = /കുഴപ്പമില്ല|സുഖമാണ്|സാരമില്ല|fine|okay/i.test(cleaned);
+    const isSafe = prof.safeRegex.test(cleaned);
+    const classification = !cleaned ? 'UNRESPONSIVE' : isSafe ? 'SAFE' : 'EMERGENCY';
+    const simReply = !cleaned
+      ? prof.unresponsiveReply
+      : isSafe
+      ? prof.safeFallbackReply
+      : prof.emergencyFallbackReply;
     return {
+      elderLang: langCode,
+      elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
       transcriptEn: cleaned
-        ? '[Credit-Guard Dev Mode: Translation paused — 0 credits used]'
-        : '[No verbal response — Credit-Guard Dev Mode]',
-      classification: !cleaned ? 'UNRESPONSIVE' : isSafe ? 'SAFE' : 'EMERGENCY',
-      clinicalSummaryEn: `[0-CREDIT DEV SIM] Triggered at ${params.distanceMeters.toFixed(2)}m. Toggle [SARVAM LIVE] in top bar for live API calls.`,
-      replyMl: sanitizeClosingMalayalam('ക്രെഡിറ്റ് സേവർ മോഡ് സജീവമാണ്.'),
+        ? `[0-Credit Sim · ${prof.nameEn}] Spoken reply captured — unlock Sarvam Live for cloud translation`
+        : '[No spoken reply during 9.5s consent window]',
+      classification,
+      clinicalSummaryEn: !cleaned
+        ? `Unresponsive after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m (${prof.nameEn} check-in). Immediate family alert triggered.`
+        : isSafe
+        ? `Resident confirmed well-being in ${prof.nameEn} at ${params.distanceMeters.toFixed(2)}m.`
+        : `Distress / help request detected in ${prof.nameEn} at ${params.distanceMeters.toFixed(2)}m. Alerting family.`,
+      replyMl: sanitizeClosingReply(simReply),
       replyAudioBase64: '',
       traces: [
+        ...traces,
         {
-          model: 'CREDIT-GUARD LOCKED',
-          endpoint: '0 CREDITS SPENT',
+          model: 'CREDIT-GUARD (0 cr)',
+          endpoint: 'LOCAL RULE TRIAGE',
           latencyMs: 0,
-          detail: 'All outbound Sarvam API calls blocked during visual/sonar calibration',
+          detail: `Simulated ${prof.nameEn} (${langCode}) triage — toggle Sarvam Live for 4-model cloud inference`,
         },
       ],
     };
   }
 
   if (!cleaned) {
-    const replyMl = sanitizeClosingMalayalam(
-      'മറുപടി ലഭിച്ചില്ല. കുടുംബാംഗങ്ങളെ ഉടൻ വിവരമറിയിക്കുന്നു. പേടിക്കേണ്ട, സഹായം ഉടൻ എത്തും.'
-    );
+    const replyNative = sanitizeClosingReply(prof.unresponsiveReply);
     try {
-      const tts = await synthesizeMalayalam(replyMl);
+      const tts = await synthesizeSpeech(replyNative, langCode);
       traces.push(tts.trace);
       return {
-        transcriptEn: '[No verbal response during 10-second consent window]',
+        elderLang: langCode,
+        elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
+        transcriptEn: '[No verbal response during 9.5-second consent window]',
         classification: 'UNRESPONSIVE',
-        clinicalSummaryEn: `Unresponsive after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m (peak motion ${params.peakMotionEnergy.toFixed(1)}, prior respiration ${params.respirationBpmBefore ? params.respirationBpmBefore.toFixed(0) + ' BPM' : 'undetected'}). Immediate caregiver call required.`,
-        replyMl,
+        clinicalSummaryEn: `Unresponsive after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m (peak motion ${params.peakMotionEnergy.toFixed(1)}, prior respiration ${params.respirationBpmBefore ? params.respirationBpmBefore.toFixed(0) + ' BPM' : 'tracking'}). Immediate caregiver call required.`,
+        replyMl: replyNative,
         replyAudioBase64: tts.audioBase64,
         traces,
       };
@@ -294,14 +568,16 @@ export async function triageCheckinResponse(params: {
         model: 'OFFLINE-FALLBACK',
         endpoint: 'LOCAL RULE ENGINE',
         latencyMs: 0,
-        detail: 'Network timeout — local geriatric safety fallback',
+        detail: `Network timeout — local ${prof.nameEn} geriatric safety fallback`,
       });
       return {
-        transcriptEn: '[No verbal response during 10-second consent window]',
+        elderLang: langCode,
+        elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
+        transcriptEn: '[No verbal response during 9.5-second consent window]',
         classification: 'UNRESPONSIVE',
-        clinicalSummaryEn: `Unresponsive after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m (offline 4G fallback). Immediate caregiver call required.`,
-        replyMl,
-        replyAudioBase64: ttsCache[replyMl] || Object.values(ttsCache)[0] || '',
+        clinicalSummaryEn: `Unresponsive after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m (offline fallback). Immediate caregiver call required.`,
+        replyMl: replyNative,
+        replyAudioBase64: ttsCache[`${langCode}::${replyNative}`] || '',
         traces,
         offlineFallback: true,
       };
@@ -311,7 +587,7 @@ export async function triageCheckinResponse(params: {
   try {
     const chatStart = Date.now();
     const [trRes, chatRes] = await Promise.all([
-      translateMalayalamToEnglish(cleaned),
+      translateToEnglish(cleaned, langCode),
       fetchWithTimeout(`${SARVAM_BASE}/v1/chat/completions`, {
         method: 'POST',
         headers: {
@@ -325,16 +601,16 @@ export async function triageCheckinResponse(params: {
           messages: [
             {
               role: 'system',
-              content:
-                'You are Kaaval, a respectful Malayalam home-care voice assistant speaking directly TO an elderly mother ("അമ്മേ") in Kerala. An ultrasonic sensor detected a sudden movement and asked her if she is okay. Read her spoken Malayalam reply ("spokenMalayalam") and return ONLY raw valid JSON (no markdown fences): {"classification":"SAFE"|"EMERGENCY","clinicalSummaryEn":"concise 1-sentence note in English for her adult child/caregiver","replyMl":"1 short warm closing Malayalam statement spoken BY YOU TO the elderly mother addressing her as അമ്മേ (NEVER ask a follow-up question because the microphone closes after this reply, and NEVER say മോനേ)"}. Classify as EMERGENCY if there is any fall, slip, pain, dizziness, breathlessness, weakness, call for help, or unclear distressed fragment (in which case reassure her in replyMl that family is being notified immediately); classify as SAFE only if she clearly confirms she is fine.',
+              content: `You are Kaaval, a warm, respectful Indian elder-care home voice guardian speaking directly TO an elderly parent in ${prof.nameEn} (${langCode}), addressing them affectionately as "${prof.elderAddress}". An ultrasonic room sensor detected a sudden physical anomaly and asked if they are alright. Read their spoken reply ("spokenTranscript") and return ONLY raw valid JSON (no markdown fences): {"classification":"SAFE"|"EMERGENCY","clinicalSummaryEn":"concise 1-sentence clinical summary in English for family caregivers","replyNative":"1 short warm closing statement written strictly in ${prof.nameEn} script (${langCode}) spoken BY YOU TO "${prof.elderAddress}" (NEVER ask any follow-up question because the microphone closes immediately after this sentence)"}. Classify as EMERGENCY if there is any fall, slip, pain, dizziness, breathlessness, weakness, call for help, or unclear distressed utterance (reassure them in replyNative that family is being notified right now); classify as SAFE only if they clearly confirm they are fine.`,
             },
             {
               role: 'user',
               content: JSON.stringify({
+                language: `${prof.nameEn} (${langCode})`,
                 trigger: params.trigger,
                 distanceMeters: Number(params.distanceMeters.toFixed(2)),
                 respirationBpmBefore: params.respirationBpmBefore,
-                spokenMalayalam: cleaned,
+                spokenTranscript: cleaned,
               }),
             },
           ],
@@ -358,27 +634,28 @@ export async function triageCheckinResponse(params: {
     let parsed: {
       classification: 'SAFE' | 'EMERGENCY';
       clinicalSummaryEn: string;
-      replyMl: string;
+      replyNative: string;
     } = {
       classification: 'EMERGENCY',
-      clinicalSummaryEn: `Resident responded: "${trRes.translatedText}". Flagged for precaution.`,
-      replyMl: 'വിവരം കുടുംബാംഗങ്ങളെ അറിയിച്ചിട്ടുണ്ട്. അനങ്ങാതെ വിശ്രമിക്കൂ.',
+      clinicalSummaryEn: `Resident responded in ${prof.nameEn}: "${trRes.translatedText}". Flagged for precaution.`,
+      replyNative: prof.emergencyFallbackReply,
     };
 
     if (jsonMatch) {
       try {
         const candidate = JSON.parse(jsonMatch[0]);
         if (candidate.classification === 'SAFE' || candidate.classification === 'EMERGENCY') {
+          const candReply = candidate.replyNative || candidate.replyMl;
           parsed = {
             classification: candidate.classification,
             clinicalSummaryEn:
               typeof candidate.clinicalSummaryEn === 'string' && candidate.clinicalSummaryEn.trim()
                 ? candidate.clinicalSummaryEn.trim()
                 : parsed.clinicalSummaryEn,
-            replyMl:
-              typeof candidate.replyMl === 'string' && candidate.replyMl.trim()
-                ? candidate.replyMl.trim()
-                : parsed.replyMl,
+            replyNative:
+              typeof candReply === 'string' && candReply.trim()
+                ? candReply.trim()
+                : parsed.replyNative,
           };
         }
       } catch {
@@ -386,58 +663,56 @@ export async function triageCheckinResponse(params: {
       }
     }
 
-    const sanitizedReplyMl = sanitizeClosingMalayalam(parsed.replyMl);
+    const sanitizedReply = sanitizeClosingReply(parsed.replyNative);
 
     traces.push({
       model: 'sarvam-105b-conversations',
       endpoint: 'POST /v1/chat/completions',
       latencyMs: Date.now() - chatStart,
-      detail: `Classified -> ${parsed.classification}`,
+      detail: `Classified (${langCode}) -> ${parsed.classification}`,
     });
 
-    const tts = await synthesizeMalayalam(sanitizedReplyMl);
+    const tts = await synthesizeSpeech(sanitizedReply, langCode);
     traces.push(tts.trace);
 
     return {
+      elderLang: langCode,
+      elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
       transcriptEn: trRes.translatedText,
       classification: parsed.classification,
       clinicalSummaryEn: parsed.clinicalSummaryEn,
-      replyMl: sanitizedReplyMl,
+      replyMl: sanitizedReply,
       replyAudioBase64: tts.audioBase64,
       traces,
     };
   } catch {
-    const isSafe = /കുഴപ്പമില്ല|സുഖമാണ്|സാരമില്ല/.test(cleaned);
+    const isSafe = prof.safeRegex.test(cleaned);
     const classification: 'SAFE' | 'EMERGENCY' = isSafe ? 'SAFE' : 'EMERGENCY';
-    const replyMl = sanitizeClosingMalayalam(
-      classification === 'SAFE'
-        ? 'അമ്മേ, സന്തോഷം. സുഖമായി വിശ്രമിക്കൂ.'
-        : 'അമ്മേ, പേടിക്കേണ്ട. വിവരം കുടുംബാംഗങ്ങളെ ഉടൻ അറിയിച്ചിട്ടുണ്ട്.'
+    const replyNative = sanitizeClosingReply(
+      classification === 'SAFE' ? prof.safeFallbackReply : prof.emergencyFallbackReply
     );
-    const replyAudioBase64 =
-      classification === 'EMERGENCY'
-        ? ttsCache[replyMl] || Object.values(ttsCache)[0] || ''
-        : ttsCache[replyMl] || '';
 
     traces.push({
       model: 'OFFLINE-FALLBACK',
       endpoint: 'LOCAL RULE ENGINE',
       latencyMs: 0,
-      detail: 'Network timeout — local geriatric safety fallback',
+      detail: `Network timeout — local ${prof.nameEn} phrase fallback`,
     });
 
     return {
+      elderLang: langCode,
+      elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
       transcriptEn:
         classification === 'SAFE'
-          ? '[Offline 4G fallback: Resident confirmed well-being in Malayalam]'
-          : `[Offline 4G fallback — Malayalam speech: "${cleaned}"]`,
+          ? `[Offline fallback: Resident confirmed safety in ${prof.nameEn}]`
+          : `[Offline fallback — ${prof.nameEn} speech: "${cleaned}"]`,
       classification,
       clinicalSummaryEn:
         classification === 'SAFE'
-          ? 'Offline 4G fallback: Resident confirmed safety via local Malayalam phrase matcher.'
-          : `Offline 4G fallback after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m. Precautionary emergency escalation triggered locally.`,
-      replyMl,
-      replyAudioBase64,
+          ? `Offline fallback: Resident confirmed safety in ${prof.nameEn}.`
+          : `Offline fallback after ${params.trigger.replaceAll('_', ' ').toLowerCase()} at ${params.distanceMeters.toFixed(2)}m. Precautionary family alert triggered.`,
+      replyMl: replyNative,
+      replyAudioBase64: ttsCache[`${langCode}::${replyNative}`] || '',
       traces,
       offlineFallback: true,
     };
@@ -446,24 +721,32 @@ export async function triageCheckinResponse(params: {
 
 export async function synthesizeCaregiverBridge(
   inputText: string,
-  sourceLang: 'en-IN' | 'ml-IN' | 'hi-IN'
+  sourceLang: IndianLangCode,
+  targetElderLang: IndianLangCode = 'ml-IN'
 ): Promise<{
   spokenMalayalam: string;
+  targetLang: IndianLangCode;
   audioBase64: string;
   traces: SarvamTraceStep[];
 }> {
-  const defaultReassuranceMl = 'അമ്മേ, പേടിക്കേണ്ട, ഞാൻ ഉടൻ സഹായം അയക്കുന്നുണ്ട്.';
+  const resolvedSource = resolveLangCode(sourceLang);
+  const resolvedTarget = resolveLangCode(targetElderLang);
+  const targetProf = BHARAT_LANGUAGES[resolvedTarget];
+  const defaultReassurance = targetProf.defaultCaregiverReassurance;
 
   if (sarvamStats.creditGuardLocked) {
     return {
-      spokenMalayalam: defaultReassuranceMl,
-      audioBase64: Object.values(ttsCache)[0] || '',
+      spokenMalayalam: defaultReassurance,
+      targetLang: resolvedTarget,
+      audioBase64:
+        ttsCache[`${resolvedTarget}::${defaultReassurance}`] ||
+        (resolvedTarget === 'ml-IN' ? Object.values(ttsCache)[0] || '' : ''),
       traces: [
         {
           model: 'CREDIT-GUARD',
           endpoint: 'LOCAL BYPASS (0 credits)',
           latencyMs: 0,
-          detail: 'Simulated Malayalam caregiver reassurance while Credit Guard is locked',
+          detail: `Simulated ${targetProf.nameEn} (${resolvedTarget}) caregiver bridge while Credit Guard is locked`,
         },
       ],
     };
@@ -471,9 +754,9 @@ export async function synthesizeCaregiverBridge(
 
   const traces: SarvamTraceStep[] = [];
   const cleanedInput = inputText.trim();
-  let spokenMalayalam = cleanedInput || defaultReassuranceMl;
+  let spokenNative = cleanedInput || defaultReassurance;
 
-  if (cleanedInput && sourceLang !== 'ml-IN') {
+  if (cleanedInput && resolvedSource !== resolvedTarget) {
     const t0 = Date.now();
     try {
       const res = await fetchWithTimeout(`${SARVAM_BASE}/translate`, {
@@ -484,8 +767,8 @@ export async function synthesizeCaregiverBridge(
         },
         body: JSON.stringify({
           input: cleanedInput,
-          source_language_code: sourceLang,
-          target_language_code: 'ml-IN',
+          source_language_code: resolvedSource,
+          target_language_code: resolvedTarget,
           model: 'sarvam-translate:v1',
         }),
       });
@@ -496,50 +779,51 @@ export async function synthesizeCaregiverBridge(
 
       const json = (await res.json()) as { translated_text?: string };
       recordCall('sarvam-translate:v1');
-      spokenMalayalam = (json.translated_text || '').trim() || defaultReassuranceMl;
+      spokenNative = (json.translated_text || '').trim() || defaultReassurance;
       traces.push({
         model: 'sarvam-translate:v1',
         endpoint: 'POST /translate',
         latencyMs: Date.now() - t0,
-        detail: `${sourceLang} -> ml-IN ("${spokenMalayalam.slice(0, 64)}")`,
+        detail: `${resolvedSource} -> ${resolvedTarget} ("${spokenNative.slice(0, 64)}")`,
       });
     } catch {
-      spokenMalayalam = defaultReassuranceMl;
+      spokenNative = defaultReassurance;
       traces.push({
         model: 'OFFLINE-FALLBACK',
         endpoint: 'LOCAL RULE ENGINE',
         latencyMs: Date.now() - t0,
-        detail: 'Network timeout — local caregiver reassurance fallback',
+        detail: `Network timeout — local ${targetProf.nameEn} caregiver reassurance`,
       });
     }
   }
 
   let audioBase64 = '';
   try {
-    const tts = await synthesizeMalayalam(spokenMalayalam);
+    const tts = await synthesizeSpeech(spokenNative, resolvedTarget);
     audioBase64 = tts.audioBase64;
     traces.push(tts.trace);
   } catch {
-    audioBase64 = ttsCache[spokenMalayalam] || Object.values(ttsCache)[0] || '';
+    audioBase64 = ttsCache[`${resolvedTarget}::${spokenNative}`] || '';
     traces.push({
       model: 'OFFLINE-FALLBACK',
       endpoint: 'LOCAL CACHE',
       latencyMs: 0,
-      detail: 'Network timeout — served cached Malayalam audio',
+      detail: `Network timeout — served cached ${targetProf.nameEn} audio`,
     });
   }
 
   return {
-    spokenMalayalam,
+    spokenMalayalam: spokenNative,
+    targetLang: resolvedTarget,
     audioBase64,
     traces,
   };
 }
 
 export async function warmPromptCache(): Promise<void> {
-  for (const text of Object.values(CHECKIN_PROMPTS)) {
+  for (const text of Object.values(BHARAT_LANGUAGES['ml-IN'].prompts)) {
     try {
-      await synthesizeMalayalam(text);
+      await synthesizeSpeech(text, 'ml-IN');
     } catch (err) {
       console.warn('[kaaval] Prompt pre-warm skipped:', (err as Error).message);
     }

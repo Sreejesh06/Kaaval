@@ -1,9 +1,12 @@
 import React from 'react';
-import type { GuardMode, IncidentRecord } from '../types';
+import { getLangMeta } from '../languages';
+import type { GuardMode, IncidentRecord, IndianLangCode } from '../types';
 
 interface Props {
   guardMode: GuardMode;
   sonarArmed: boolean;
+  elderLang: IndianLangCode;
+  autoDetectSpeech: boolean;
   activePromptMl: string;
   liveTranscriptMl: string;
   vadActive: boolean;
@@ -18,6 +21,8 @@ interface Props {
 export const TriageTimeline: React.FC<Props> = ({
   guardMode,
   sonarArmed,
+  elderLang,
+  autoDetectSpeech,
   activePromptMl,
   liveTranscriptMl,
   vadActive,
@@ -32,20 +37,29 @@ export const TriageTimeline: React.FC<Props> = ({
     guardMode === 'PLAYING_PROMPT' ||
     guardMode === 'LISTENING_CONSENT' ||
     guardMode === 'TRIAGING_RESPONSE';
+  const langMeta = getLangMeta(elderLang);
 
   return (
     <div className="triage-stack">
       <div className="panel">
         <div className="panel-head">
-          <span className="panel-title">Malayalam voice check-in</span>
+          <span className="panel-title">
+            Sarvam Bharat check-in · {langMeta.nativeName}
+          </span>
           <span className="panel-meta">
-            {inCheckin ? 'Gate open · 9.5s consent' : 'Locked · >17.5 kHz only'}
+            {inCheckin
+              ? 'Gate open · 9.5s consent'
+              : autoDetectSpeech
+              ? 'Auto-ID · >17.5 kHz only'
+              : `${langMeta.code} · >17.5 kHz only`}
           </span>
         </div>
 
         <div className="live-dialogue">
           <div>
-            <div className="dialogue-label">Bulbul v3 prompt (ml-IN)</div>
+            <div className="dialogue-label">
+              Bulbul v3 prompt ({langMeta.nameEn} · {langMeta.code})
+            </div>
             <div
               className="ml"
               style={{
@@ -68,7 +82,7 @@ export const TriageTimeline: React.FC<Props> = ({
               style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}
             >
               <span>
-                Saaras v4 stream{' '}
+                Saaras v4 stream {autoDetectSpeech ? '(auto-detect) ' : ''}
                 {guardMode === 'LISTENING_CONSENT'
                   ? vadActive
                     ? '· Speech detected'
@@ -89,7 +103,9 @@ export const TriageTimeline: React.FC<Props> = ({
             >
               {liveTranscriptMl ||
                 (guardMode === 'LISTENING_CONSENT'
-                  ? 'മലയാളത്തിൽ മറുപടി പറയൂ...'
+                  ? autoDetectSpeech
+                    ? 'Speak in any Indian language now...'
+                    : langMeta.speakHint
                   : 'Speech firewall locked (<17.5 kHz zeroed).')}
             </div>
           </div>
@@ -135,16 +151,41 @@ export const TriageTimeline: React.FC<Props> = ({
               >
                 <span className={`badge ${inc.classification}`}>
                   <span
-                    className={`led ${
-                      inc.classification === 'SAFE' ? 'on-teal' : 'on-red'
-                    }`}
+                    className={`led ${inc.classification === 'SAFE' ? 'on-teal' : 'on-red'
+                      }`}
                   />
                   {inc.classification === 'SAFE' ? 'Safe · Local only' : inc.classification}
                 </span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--content-muted)' }}>
-                  {new Date(inc.timestampIso).toLocaleTimeString()} ·{' '}
-                  {inc.distanceMeters.toFixed(2)}m
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {inc.elderLangLabel && (
+                    <span
+                      className="mono"
+                      style={{ fontSize: 10.5, color: 'var(--content-secondary)' }}
+                    >
+                      {inc.elderLangLabel}
+                      {inc.autoDetectedLang ? ' · Auto-ID' : ''}
+                    </span>
+                  )}
+                  {inc.whatsappDispatch && (
+                    <span
+                      className="mono"
+                      style={{
+                        fontSize: 10.5,
+                        color: inc.whatsappDispatch.sent
+                          ? 'var(--accent)'
+                          : 'var(--content-muted)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {inc.whatsappDispatch.sent ? 'WhatsApp ✓' : 'WA pending'}
+                    </span>
+                  )}
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--content-muted)' }}>
+                    {new Date(inc.timestampIso).toLocaleTimeString()} ·{' '}
+                    {inc.distanceMeters.toFixed(2)}m
+                    {inc.azimuthDeg === 180 ? ' · Backside' : ''}
+                  </span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 6 }}>

@@ -22,8 +22,8 @@ const TICKER_ITEMS = [
   '-115.1 DB SPEECH FIREWALL (<17.5 KHZ ZEROED)',
   '0.33 CM FMCW RANGE PRECISION',
   '9/9 VERIFIED PHYSICS SUITES',
-  'BULBUL V3 + SAARAS V4 + SARVAM-105B',
-  '2-WAY MALAYALAM CAREGIVER VOICE BRIDGE',
+  'BULBUL V3 + SAARAS V4 + SARVAM-105B + TRANSLATE',
+  '10 BHARAT LANGUAGES + WHATSAPP FAMILY BRIDGE',
 ];
 
 export const SaasOverview: React.FC<Props> = ({
@@ -48,13 +48,14 @@ export const SaasOverview: React.FC<Props> = ({
           <KaavalHeroWordmark />
 
           <h1>
-            Check on parents living alone in Kerala, without putting a camera in their bedroom.
+            Check on parents living alone across India, without putting a camera in their bedroom.
           </h1>
 
           <p className="gx-hero-sub">
-            Kaaval turns a bedside laptop or tablet into an inaudible 17.6–20.2 kHz ultrasonic
-            room sensor. It tracks presence, breathing, and falls with the camera strictly off—and
-            only opens a spoken Malayalam check-in when a real fall + stillness occurs.
+            Kaaval turns a bedside laptop + phone into an inaudible 17.6–20.3 kHz 360° ultrasonic
+            room guardian. Camera stays strictly off—and when a real fall + stillness occurs,
+            Sarvam AI checks in across 10 Indian languages (മലയാളം, தமிழ், हिन्दी, ಕನ್ನಡ, తెలుగు &amp; more)
+            with instant WhatsApp &amp; 2-way voice alerts.
           </p>
 
           <div className="gx-hero-ctas">

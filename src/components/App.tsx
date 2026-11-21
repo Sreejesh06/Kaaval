@@ -6,9 +6,11 @@ import type {
   BenchmarkSummary,
   GuardMode,
   IncidentRecord,
+  IndianLangCode,
   RadarFrame,
   SatelliteTelemetry,
 } from '../types';
+import { INDIAN_LANGUAGES } from '../languages';
 import { ArborFooter, ArborNavbar, type ArborRoute } from './ArborChrome';
 import { IconMicCheck, IconPhonePair, IconSliders } from './BrandAndIcons';
 import { QrCodeSvg } from './QrCodeSvg';
@@ -86,6 +88,8 @@ export const App: React.FC = () => {
   const [activeRoute, setActiveRoute] = useState<ArborRoute>(resolveRouteFromUrl);
   const [guardMode, setGuardMode] = useState<GuardMode>('OFFLINE');
   const [viewMode, setViewMode] = useState<'IRONBOW' | 'SONAR3D'>('IRONBOW');
+  const [elderLang, setElderLang] = useState<IndianLangCode>('ml-IN');
+  const [autoDetectSpeech, setAutoDetectSpeech] = useState<boolean>(false);
   const [creditLocked, setCreditLocked] = useState<boolean>(true);
   const [autoTriggerEnabled, setAutoTriggerEnabled] = useState<boolean>(false);
   const [showTune, setShowTune] = useState<boolean>(false);
@@ -149,6 +153,10 @@ export const App: React.FC = () => {
   autoTrigRef.current = autoTriggerEnabled;
   const satArmedRef = useRef<boolean>(satArmed);
   satArmedRef.current = satArmed;
+  const elderLangRef = useRef<IndianLangCode>(elderLang);
+  elderLangRef.current = elderLang;
+  const autoDetectRef = useRef<boolean>(autoDetectSpeech);
+  autoDetectRef.current = autoDetectSpeech;
 
   const prealertStateRef = useRef<{
     active: boolean;
@@ -188,15 +196,22 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const isCompanionOnlyRoute = activeRoute === 'CAREGIVER' || activeRoute === 'SATELLITE';
+  const [bootedStandaloneMobileCompanion] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const initial = resolveRouteFromUrl();
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    return isMobile && (initial === 'CAREGIVER' || initial === 'SATELLITE');
+  });
 
   useEffect(() => {
-    if (isCompanionOnlyRoute) return;
+    if (bootedStandaloneMobileCompanion) return;
 
     fetch('/api/health')
       .then((r) => r.json())
       .then((h) => {
         if (typeof h.creditGuardLocked === 'boolean') setCreditLocked(h.creditGuardLocked);
+        if (h.elderLang) setElderLang(h.elderLang as IndianLangCode);
+        if (typeof h.autoDetectSpeech === 'boolean') setAutoDetectSpeech(h.autoDetectSpeech);
         if (typeof h.whatsappConfigured === 'boolean') {
           setWaStatus((prev) => ({
             ...prev,
@@ -248,6 +263,13 @@ export const App: React.FC = () => {
       ws.onmessage = async (ev) => {
         try {
           const msg = JSON.parse(ev.data);
+          if (msg.type === 'room_language') {
+            if (msg.elderLang) setElderLang(msg.elderLang as IndianLangCode);
+            if (typeof msg.autoDetectSpeech === 'boolean') {
+              setAutoDetectSpeech(msg.autoDetectSpeech);
+            }
+            return;
+          }
           if (msg.type === 'satellite_status') {
             const conn = Boolean(msg.connected);
             const arm = Boolean(msg.armed);
@@ -302,7 +324,7 @@ export const App: React.FC = () => {
       window.clearTimeout(retryId);
       hubWsRef.current?.close();
     };
-  }, [isCompanionOnlyRoute]);
+  }, [bootedStandaloneMobileCompanion]);
 
   const notifySatelliteVoiceGate = (paused: boolean) => {
     if (hubWsRef.current?.readyState === WebSocket.OPEN) {
@@ -332,7 +354,14 @@ export const App: React.FC = () => {
         engine.setWorkletMode('VOICE_PAUSE');
         notifySatelliteVoiceGate(true);
 
-        const promptRes = await fetch(`/api/prompt-audio?trigger=${encodeURIComponent(trigger)}`);
+        const currentLang = elderLangRef.current;
+        const currentAuto = autoDetectRef.current;
+
+        const promptRes = await fetch(
+          `/api/prompt-audio?trigger=${encodeURIComponent(trigger)}&lang=${encodeURIComponent(
+            currentLang
+          )}`
+        );
         if (!promptRes.ok) throw new Error(`Prompt fetch failed (${promptRes.status})`);
         const promptData = (await promptRes.json()) as {
           promptMl: string;
@@ -351,10 +380,15 @@ export const App: React.FC = () => {
           setConsentRemainingSec(rem);
         }, 100);
 
-        const sttResult = await engine.streamConsentWindow(windowMs, (partial, vad) => {
-          setLiveTranscriptMl(partial);
-          setVadActive(vad);
-        });
+        const sttResult = await engine.streamConsentWindow(
+          windowMs,
+          (partial, vad) => {
+            setLiveTranscriptMl(partial);
+            setVadActive(vad);
+          },
+          currentLang,
+          currentAuto
+        );
         window.clearInterval(countdownId);
         setConsentRemainingSec(0);
         setLiveTranscriptMl(sttResult.transcriptMl);
@@ -366,6 +400,8 @@ export const App: React.FC = () => {
           body: JSON.stringify({
             trigger,
             transcriptMl: sttResult.transcriptMl,
+            elderLang: currentLang,
+            ...(sttResult.detectedLang ? { detectedLang: sttResult.detectedLang } : {}),
             distanceMeters,
             azimuthDeg: azimuthDeg ?? hudRef.current.azimuthDeg,
             snapshotDataUrl,
@@ -562,12 +598,12 @@ export const App: React.FC = () => {
   };
 
   const handleGlobalPrimaryAction = async () => {
-    if (activeRoute !== 'CONSOLE' && activeRoute !== 'BENCHMARK') {
+    if (activeRoute === 'OVERVIEW') {
       navigateTo('CONSOLE');
     }
     if (guardMode === 'OFFLINE') {
       await armSonar();
-    } else if (activeRoute === 'CONSOLE') {
+    } else {
       engineRef.current?.zeroClutter();
     }
   };
@@ -605,9 +641,29 @@ export const App: React.FC = () => {
 
       <div className="app-body">
         {activeRoute === 'CAREGIVER' ? (
-          <CaregiverView onBackToConsole={() => navigateTo('CONSOLE')} />
+          <CaregiverView
+            lanUrls={lanUrls}
+            sonarArmed={sonarArmed}
+            onRequestArm={armSonar}
+            onTriggerTestCheckin={() =>
+              runConsentCheckIn(
+                'MANUAL_VERIFICATION_TEST',
+                hud.distanceM,
+                hud.motionEnergy,
+                hud.bpm,
+                hud.azimuthDeg
+              )
+            }
+            onBackToConsole={() => navigateTo('CONSOLE')}
+          />
         ) : activeRoute === 'SATELLITE' ? (
-          <SatelliteNodeView onBackToConsole={() => navigateTo('CONSOLE')} />
+          <SatelliteNodeView
+            satHttpsUrls={satHttpsUrls}
+            hostSatConnected={satConnected}
+            hostSatArmed={satArmed}
+            hostSatTelemetryRef={satelliteRef}
+            onBackToConsole={() => navigateTo('CONSOLE')}
+          />
         ) : activeRoute === 'OVERVIEW' ? (
           <SaasOverview
             sonarArmed={sonarArmed}
@@ -654,63 +710,131 @@ export const App: React.FC = () => {
 
                   {errorMsg && <span className="err-inline">{errorMsg}</span>}
 
-                  <button
-                    type="button"
-                    className={!creditLocked ? 'pill-on' : ''}
-                    onClick={toggleCreditGuard}
-                    title="Protects Sarvam API credits while testing sonar. Toggle to Sarvam live only for spoken voice check-in demos."
-                  >
-                    {creditLocked ? '0-credit lock' : 'Sarvam live'}
-                  </button>
+                  {activeRoute === 'CONSOLE' ? (
+                    <>
+                      <label
+                        className="ctrl-inline"
+                        title="Elder's home language (Sarvam Bulbul v3 + Saaras v4 + 105B + Translate across 10 Bharat languages)"
+                      >
+                        <select
+                          aria-label="Elder home language"
+                          value={elderLang}
+                          onChange={async (e) => {
+                            const nextLang = e.target.value as IndianLangCode;
+                            setElderLang(nextLang);
+                            await fetch('/api/language', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ elderLang: nextLang }),
+                            }).catch(() => { });
+                          }}
+                        >
+                          {INDIAN_LANGUAGES.map((l) => (
+                            <option key={l.code} value={l.code}>
+                              {l.nativeName} · {l.nameEn}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                  {sonarArmed && (
-                    <button
-                      type="button"
-                      onClick={() => engineRef.current?.zeroClutter()}
-                    >
-                      Zero clutter
-                    </button>
+                      <button
+                        type="button"
+                        className={autoDetectSpeech ? 'pill-on' : ''}
+                        onClick={async () => {
+                          const nextAuto = !autoDetectSpeech;
+                          setAutoDetectSpeech(nextAuto);
+                          await fetch('/api/language', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ autoDetectSpeech: nextAuto }),
+                          }).catch(() => { });
+                        }}
+                        title="Enable Saaras v4 automatic Indian language identification (language_code=unknown)"
+                      >
+                        {autoDetectSpeech ? 'Auto-ID: on' : 'Auto-ID: off'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={!creditLocked ? 'pill-on' : ''}
+                        onClick={toggleCreditGuard}
+                        title="Protects Sarvam API credits while testing sonar. Toggle to Sarvam live only for spoken voice check-in demos."
+                      >
+                        {creditLocked ? '0-credit lock' : 'Sarvam live'}
+                      </button>
+
+                      {sonarArmed && (
+                        <button
+                          type="button"
+                          onClick={() => engineRef.current?.zeroClutter()}
+                        >
+                          Zero clutter
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className={autoTriggerEnabled ? 'pill-on' : ''}
+                        onClick={() => setAutoTriggerEnabled((v) => !v)}
+                        title="Enable autonomous fall + stillness voice check-in"
+                      >
+                        {autoTriggerEnabled ? 'Auto-fall: on' : 'Auto-fall: paused'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          !sonarArmed ||
+                          guardMode === 'LISTENING_CONSENT' ||
+                          guardMode === 'PLAYING_PROMPT' ||
+                          guardMode === 'TRIAGING_RESPONSE'
+                        }
+                        onClick={() =>
+                          runConsentCheckIn(
+                            'MANUAL_VERIFICATION_TEST',
+                            hud.distanceM,
+                            hud.motionEnergy,
+                            hud.bpm,
+                            hud.azimuthDeg
+                          )
+                        }
+                      >
+                        <IconMicCheck size={15} />
+                        Voice check-in
+                      </button>
+
+                      <button
+                        type="button"
+                        className={showPairBar ? 'pill-on' : ''}
+                        onClick={() => setShowPairBar((v) => !v)}
+                      >
+                        <IconPhonePair size={15} />
+                        Pair phones
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {sonarArmed && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => engineRef.current?.zeroClutter()}
+                          >
+                            Zero clutter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => engineRef.current?.recalibrateDirectPath()}
+                          >
+                            Re-lock direct path
+                          </button>
+                        </>
+                      )}
+                      <button type="button" onClick={() => navigateTo('CONSOLE')}>
+                        Open live console
+                      </button>
+                    </>
                   )}
-
-                  <button
-                    type="button"
-                    className={autoTriggerEnabled ? 'pill-on' : ''}
-                    onClick={() => setAutoTriggerEnabled((v) => !v)}
-                    title="Enable autonomous fall + stillness voice check-in"
-                  >
-                    {autoTriggerEnabled ? 'Auto-fall: on' : 'Auto-fall: paused'}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={
-                      !sonarArmed ||
-                      guardMode === 'LISTENING_CONSENT' ||
-                      guardMode === 'PLAYING_PROMPT' ||
-                      guardMode === 'TRIAGING_RESPONSE'
-                    }
-                    onClick={() =>
-                      runConsentCheckIn(
-                        'MANUAL_VERIFICATION_TEST',
-                        hud.distanceM,
-                        hud.motionEnergy,
-                        hud.bpm,
-                        hud.azimuthDeg
-                      )
-                    }
-                  >
-                    <IconMicCheck size={15} />
-                    Voice check-in
-                  </button>
-
-                  <button
-                    type="button"
-                    className={showPairBar ? 'pill-on' : ''}
-                    onClick={() => setShowPairBar((v) => !v)}
-                  >
-                    <IconPhonePair size={15} />
-                    Pair phones
-                  </button>
 
                   <button
                     type="button"
@@ -1015,6 +1139,8 @@ export const App: React.FC = () => {
                   <TriageTimeline
                     guardMode={guardMode}
                     sonarArmed={sonarArmed}
+                    elderLang={elderLang}
+                    autoDetectSpeech={autoDetectSpeech}
                     activePromptMl={activePromptMl}
                     liveTranscriptMl={liveTranscriptMl}
                     vadActive={vadActive}
@@ -1043,6 +1169,10 @@ export const App: React.FC = () => {
                 <BenchmarkPanel
                   summary={benchmark}
                   sonarArmed={sonarArmed}
+                  latestFrameRef={latestFrameRef}
+                  frameSeqRef={frameSeqRef}
+                  guardMode={guardMode}
+                  fallThreshold={fallThreshold}
                   onRequestArm={armSonar}
                   subscribeFrames={(cb) => {
                     trialSubscriberRef.current = cb;

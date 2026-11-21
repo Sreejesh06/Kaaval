@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { GuardMode, RadarFrame } from '../types';
 
 interface Props {
@@ -33,6 +33,7 @@ export const RadarScopes: React.FC<Props> = ({
   const cvRangeRef = useRef<HTMLCanvasElement | null>(null);
   const cvBreathRef = useRef<HTMLCanvasElement | null>(null);
   const cvSpecRef = useRef<HTMLCanvasElement | null>(null);
+  const [showRawDsp, setShowRawDsp] = useState<boolean>(false);
 
   const guardModeRef = useRef(guardMode);
   guardModeRef.current = guardMode;
@@ -76,37 +77,55 @@ export const RadarScopes: React.FC<Props> = ({
   }, [latestFrameRef, frameSeqRef]);
 
   return (
-    <div className="scopes-grid">
-      <div className="panel night-panel">
-        <div className="panel-head">
-          <span className="panel-title">Range-time waterfall</span>
-          <span className="panel-meta">0.32m → 3.0m</span>
+    <div>
+      <div className="scopes-grid">
+        <div className="panel night-panel">
+          <div className="panel-head">
+            <span className="panel-title">Sub-mm chest respiration</span>
+            <span className="panel-meta">Non-contact ultrasound</span>
+          </div>
+          <canvas ref={cvBreathRef} className="scope-canvas" width={540} height={152} />
         </div>
-        <canvas ref={cvWaterfallRef} className="scope-canvas" width={540} height={152} />
+
+        <div className="panel night-panel">
+          <div className="panel-head">
+            <span className="panel-title">Speech privacy firewall</span>
+            <span className="panel-meta" style={{ color: '#3ed598' }}>
+              Speak loudly to test · 0 bytes recorded
+            </span>
+          </div>
+          <canvas ref={cvSpecRef} className="scope-canvas" width={540} height={152} />
+        </div>
+
+        {showRawDsp && (
+          <>
+            <div className="panel night-panel">
+              <div className="panel-head">
+                <span className="panel-title">Range-time waterfall</span>
+                <span className="panel-meta">0.32m → 3.0m</span>
+              </div>
+              <canvas ref={cvWaterfallRef} className="scope-canvas" width={540} height={152} />
+            </div>
+
+            <div className="panel night-panel">
+              <div className="panel-head">
+                <span className="panel-title">FMCW range &amp; motion profile</span>
+                <span className="panel-meta">Matched filter</span>
+              </div>
+              <canvas ref={cvRangeRef} className="scope-canvas" width={540} height={152} />
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="panel night-panel">
-        <div className="panel-head">
-          <span className="panel-title">Range profile</span>
-          <span className="panel-meta">Presence &amp; motion</span>
-        </div>
-        <canvas ref={cvRangeRef} className="scope-canvas" width={540} height={152} />
-      </div>
-
-      <div className="panel night-panel">
-        <div className="panel-head">
-          <span className="panel-title">Chest phase wave</span>
-          <span className="panel-meta">λ = 19.1mm</span>
-        </div>
-        <canvas ref={cvBreathRef} className="scope-canvas" width={540} height={152} />
-      </div>
-
-      <div className="panel night-panel">
-        <div className="panel-head">
-          <span className="panel-title">Speech firewall &amp; IQ</span>
-          <span className="panel-meta">&lt;17.5 kHz zeroed</span>
-        </div>
-        <canvas ref={cvSpecRef} className="scope-canvas" width={540} height={152} />
+      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={() => setShowRawDsp((v) => !v)}
+          style={{ minHeight: 28, padding: '3px 12px', fontSize: 11.5 }}
+        >
+          {showRawDsp ? 'Hide raw FMCW waterfall' : '+ Show raw FMCW waterfall'}
+        </button>
       </div>
     </div>
   );
@@ -298,11 +317,11 @@ function drawSpectrumAndPolar(
     ctx.fillRect(i * barW, h - barH, Math.max(1, barW - 0.8), barH);
   }
 
-  ctx.font = '10px "DM Mono", monospace';
+  ctx.font = '600 10px "DM Mono", monospace';
   ctx.fillStyle = '#fda4af';
-  ctx.fillText('ZEROED SPEECH (<17.5k)', 6, 13);
-  ctx.fillStyle = '#14b8a6';
-  ctx.fillText('L+R', cutX + 5, 13);
+  ctx.fillText('VOICE BLOCKED (<17.5k = 0)', 6, 13);
+  ctx.fillStyle = '#3ed598';
+  ctx.fillText('SONAR', cutX + 5, 13);
 
   // IQ Polar Plot on right 35%
   const cx = specW + (w - specW) / 2;

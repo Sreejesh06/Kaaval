@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getFilteredSatelliteTargets } from '../audio/fusion';
 import type {
   DetectedPerson,
   GuardMode,
@@ -460,10 +461,15 @@ function renderObservatory(
     ctx.stroke();
   }
 
-  // 6. Clean 3D Multi-Person Presence Silhouettes & Breathing Halo (Front + POCO Backside!)
+  // 6. Clean 3D Multi-Person Presence Silhouettes & Breathing Halo (Front + de-duplicated Backside)
+  const dedupedSat = getFilteredSatelliteTargets(
+    armed ? subject.targets : [],
+    activeSat,
+    armed
+  );
   const allTargets: DetectedPerson[] = [
     ...(armed ? subject.targets : []),
-    ...(activeSat ? activeSat.targets : []),
+    ...dedupedSat,
   ];
 
   if (allTargets.length > 0) {

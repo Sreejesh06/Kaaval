@@ -1,7 +1,8 @@
-import type { RadarFrame, SonarNodeProfile } from '../types';
+import type { IndianLangCode, RadarFrame, SonarNodeProfile } from '../types';
 
 export interface ConsentListenResult {
   transcriptMl: string;
+  detectedLang?: IndianLangCode;
   sttLatencyMs: number;
   sttModelUsed: string;
 }
@@ -108,6 +109,10 @@ export class KaavalSonarEngine {
     this.workletNode?.port.postMessage({ type: 'lock_range', meters });
   }
 
+  setMaxRange(meters: number) {
+    this.workletNode?.port.postMessage({ type: 'set_max_range', meters });
+  }
+
   setWorkletMode(mode: 'SONAR_LOCKED' | 'VOICE_PAUSE' | 'VOICE_LISTEN') {
     this.workletNode?.port.postMessage({ type: 'set_mode', mode });
   }
@@ -173,15 +178,22 @@ export class KaavalSonarEngine {
    */
   streamConsentWindow(
     maxDurationMs: number,
-    onPartial: (text: string, vadActive: boolean) => void
+    onPartial: (text: string, vadActive: boolean) => void,
+    langCode: IndianLangCode = 'ml-IN',
+    autoDetect = false
   ): Promise<ConsentListenResult> {
     return new Promise((resolve) => {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${proto}//${window.location.host}/ws/stt`);
+      const ws = new WebSocket(
+        `${proto}//${window.location.host}/ws/stt?lang=${encodeURIComponent(langCode)}&auto=${
+          autoDetect ? '1' : '0'
+        }`
+      );
       const startedAt = performance.now();
 
       let finalSegments: string[] = [];
       let latestPartial = '';
+      let detectedLang: IndianLangCode | undefined;
       let vadActive = false;
       let modelUsed = 'saaras:v4';
       let settled = false;
@@ -202,6 +214,7 @@ export class KaavalSonarEngine {
         const combined = [...finalSegments, latestPartial].join(' ').trim();
         resolve({
           transcriptMl: combined,
+          ...(detectedLang ? { detectedLang } : {}),
           sttLatencyMs: Math.round(performance.now() - startedAt),
           sttModelUsed: modelUsed,
         });
@@ -232,9 +245,11 @@ export class KaavalSonarEngine {
           const msg = JSON.parse(ev.data) as {
             event?: string;
             text?: string;
+            language_code?: IndianLangCode;
             modelUsed?: string;
           };
           if (msg.modelUsed) modelUsed = msg.modelUsed;
+          if (msg.language_code) detectedLang = msg.language_code;
 
           if (msg.event === 'vad.speech_start') {
             vadActive = true;

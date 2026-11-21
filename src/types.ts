@@ -8,6 +8,18 @@ export type GuardMode =
   | 'EMERGENCY_DISPATCHED'
   | 'RESOLVED_SAFE';
 
+export type IndianLangCode =
+  | 'ml-IN'
+  | 'ta-IN'
+  | 'hi-IN'
+  | 'kn-IN'
+  | 'te-IN'
+  | 'bn-IN'
+  | 'mr-IN'
+  | 'gu-IN'
+  | 'pa-IN'
+  | 'en-IN';
+
 export type AnomalyTriggerReason =
   | 'FALL_IMPACT_AND_STILLNESS'
   | 'PROLONGED_ABSENCE_OF_RESPIRATION'
@@ -102,6 +114,7 @@ export interface CaregiverReply {
   timestampIso: string;
   messageInput: string;
   sourceLang: string;
+  targetLang?: IndianLangCode;
   spokenMalayalam: string;
   latencyMs: number;
 }
@@ -110,6 +123,9 @@ export interface IncidentRecord {
   id: string;
   timestampIso: string;
   trigger: AnomalyTriggerReason;
+  elderLang?: IndianLangCode;
+  elderLangLabel?: string;
+  autoDetectedLang?: boolean;
   distanceMeters: number;
   azimuthDeg?: number;
   snapshotDataUrl?: string;
@@ -124,6 +140,12 @@ export interface IncidentRecord {
   replyAudioBase64?: string;
   sarvamTraces: SarvamTraceStep[];
   caregiverReplies?: CaregiverReply[];
+  whatsappDispatch?: {
+    sent: boolean;
+    recipientMasked: string;
+    latencyMs: number;
+    detail: string;
+  };
   offlineFallback?: boolean;
 }
 

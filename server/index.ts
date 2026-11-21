@@ -9,10 +9,12 @@ import os from 'node:os';
 import express from 'express';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
-  CHECKIN_PROMPTS,
+  BHARAT_LANGUAGES,
+  getCheckinPrompt,
+  resolveLangCode,
   sarvamStats,
   synthesizeCaregiverBridge,
-  synthesizeMalayalam,
+  synthesizeSpeech,
   transcribeFallbackRest,
   triageCheckinResponse,
   warmPromptCache,
@@ -26,11 +28,17 @@ import {
   computeBenchmarkSummary,
   listIncidents,
 } from './trialsStore.js';
+import {
+  formatWhatsAppIncidentMessage,
+  getWhatsAppConfig,
+  sendWhatsAppTextMeBot,
+} from './whatsapp.js';
 import type {
   AnomalyTriggerReason,
   CaregiverReply,
   GroundTruthClass,
   IncidentRecord,
+  IndianLangCode,
 } from '../src/types.js';
 
 const PORT = Number(process.env.PORT || 3001);
@@ -120,6 +128,8 @@ const hubClients = new Map<
   }
 >();
 let latestRoomTelemetry: unknown = null;
+let activeElderLang: IndianLangCode = 'ml-IN';
+let autoDetectSpeech = false;
 
 function getActiveSatelliteState() {
   let connected = false;
@@ -159,12 +169,32 @@ const app = express();
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/health', (_req, res) => {
+  const wa = getWhatsAppConfig();
   res.json({
     ok: true,
     sarvamKeyConfigured: Boolean(process.env.SARVAM_API_KEY),
     creditGuardLocked: sarvamStats.creditGuardLocked,
+    elderLang: activeElderLang,
+    autoDetectSpeech,
+    whatsappConfigured: wa.configured,
+    whatsappRecipient: wa.maskedPhone,
     sarvamStats,
   });
+});
+
+app.post('/api/language', (req, res) => {
+  if (req.body?.elderLang) {
+    activeElderLang = resolveLangCode(String(req.body.elderLang));
+  }
+  if (typeof req.body?.autoDetectSpeech === 'boolean') {
+    autoDetectSpeech = req.body.autoDetectSpeech;
+  }
+  broadcastHub({
+    type: 'room_language',
+    elderLang: activeElderLang,
+    autoDetectSpeech,
+  });
+  res.json({ elderLang: activeElderLang, autoDetectSpeech });
 });
 
 app.get('/api/lan-info', (_req, res) => {
@@ -183,13 +213,15 @@ app.post('/api/credit-guard', (req, res) => {
 
 app.get('/api/prompt-audio', async (req, res) => {
   const trigger = (req.query.trigger as AnomalyTriggerReason) || 'FALL_IMPACT_AND_STILLNESS';
-  const promptMl = CHECKIN_PROMPTS[trigger] || CHECKIN_PROMPTS.FALL_IMPACT_AND_STILLNESS;
+  const lang = resolveLangCode((req.query.lang as string) || activeElderLang);
+  const promptMl = getCheckinPrompt(trigger, lang);
   try {
-    const { audioBase64, trace } = await synthesizeMalayalam(promptMl);
-    res.json({ promptMl, audioBase64, trace });
+    const { audioBase64, trace } = await synthesizeSpeech(promptMl, lang);
+    res.json({ promptMl, lang, audioBase64, trace });
   } catch (err) {
     res.json({
       promptMl,
+      lang,
       audioBase64: '',
       trace: {
         model: 'OFFLINE-CHIME-ONLY',
@@ -206,6 +238,8 @@ app.post('/api/triage', async (req, res) => {
     const {
       trigger,
       transcriptMl,
+      elderLang: reqLang,
+      detectedLang,
       distanceMeters,
       azimuthDeg,
       snapshotDataUrl,
@@ -216,6 +250,8 @@ app.post('/api/triage', async (req, res) => {
     } = req.body as {
       trigger: AnomalyTriggerReason;
       transcriptMl: string;
+      elderLang?: IndianLangCode;
+      detectedLang?: IndianLangCode;
       distanceMeters: number;
       azimuthDeg?: number;
       snapshotDataUrl?: string;
@@ -225,21 +261,24 @@ app.post('/api/triage', async (req, res) => {
       sttModelUsed?: string;
     };
 
-    const promptMl = CHECKIN_PROMPTS[trigger] || CHECKIN_PROMPTS.FALL_IMPACT_AND_STILLNESS;
+    const chosenLang = resolveLangCode(detectedLang || reqLang || activeElderLang);
+    const langProf = BHARAT_LANGUAGES[chosenLang];
+    const promptMl = getCheckinPrompt(trigger, reqLang || activeElderLang);
     const sttTrace = sttModelUsed
       ? {
           model: sttModelUsed,
           endpoint: 'WSS /speech-to-text-realtime/ws',
           latencyMs: sttLatencyMs || 0,
           detail: transcriptMl
-            ? `Captured Malayalam speech (${transcriptMl.length} chars)`
-            : '10s consent window elapsed with zero speech VAD',
+            ? `Captured ${langProf.nameEn} (${chosenLang}${detectedLang ? ' · auto-ID' : ''}) speech (${transcriptMl.length} chars)`
+            : '9.5s consent window elapsed with zero speech VAD',
         }
       : undefined;
 
     const result = await triageCheckinResponse({
       trigger,
       transcriptMl: transcriptMl || '',
+      elderLang: chosenLang,
       distanceMeters: Number(distanceMeters || 0),
       peakMotionEnergy: Number(peakMotionEnergy || 0),
       respirationBpmBefore: respirationBpmBefore ?? null,
@@ -250,6 +289,9 @@ app.post('/api/triage', async (req, res) => {
       id: crypto.randomUUID(),
       timestampIso: new Date().toISOString(),
       trigger,
+      elderLang: result.elderLang,
+      elderLangLabel: result.elderLangLabel,
+      ...(detectedLang ? { autoDetectedLang: true } : {}),
       distanceMeters: Number(distanceMeters || 0),
       ...(typeof azimuthDeg === 'number' && Number.isFinite(azimuthDeg) ? { azimuthDeg } : {}),
       ...(typeof snapshotDataUrl === 'string' && snapshotDataUrl.length > 0
@@ -268,6 +310,24 @@ app.post('/api/triage', async (req, res) => {
       ...(result.offlineFallback ? { offlineFallback: true } : {}),
     };
 
+    // Automatically dispatch beautifully formatted WhatsApp alert on EMERGENCY or UNRESPONSIVE!
+    if (record.classification === 'EMERGENCY' || record.classification === 'UNRESPONSIVE') {
+      const lanIps = getLanIps();
+      const caregiverUrl =
+        lanIps.length > 0
+          ? `http://${lanIps[0]}:${VITE_DEV_PORT}/caregiver`
+          : `http://localhost:${VITE_DEV_PORT}/caregiver`;
+      const waText = formatWhatsAppIncidentMessage(record, caregiverUrl);
+      const waResult = await sendWhatsAppTextMeBot(waText);
+      record.whatsappDispatch = waResult;
+      record.sarvamTraces.push({
+        model: 'textmebot:whatsapp',
+        endpoint: 'GET /send.php (WhatsApp)',
+        latencyMs: waResult.latencyMs,
+        detail: waResult.detail,
+      });
+    }
+
     const incidents = appendIncident(record);
     broadcastHub({ type: 'incident_created', record, incidents });
     res.json({ record, incidents, sarvamStats });
@@ -279,10 +339,11 @@ app.post('/api/triage', async (req, res) => {
 
 app.post('/api/caregiver-reply', async (req, res) => {
   try {
-    const { incidentId, message, sourceLang } = (req.body || {}) as {
+    const { incidentId, message, sourceLang, targetLang } = (req.body || {}) as {
       incidentId?: string;
       message?: string;
-      sourceLang?: 'en-IN' | 'ml-IN' | 'hi-IN';
+      sourceLang?: IndianLangCode;
+      targetLang?: IndianLangCode;
     };
 
     const messageInput = (message || '').trim();
@@ -291,22 +352,22 @@ app.post('/api/caregiver-reply', async (req, res) => {
       return;
     }
 
-    const resolvedLang: 'en-IN' | 'ml-IN' | 'hi-IN' =
-      sourceLang === 'ml-IN' || sourceLang === 'hi-IN' || sourceLang === 'en-IN'
-        ? sourceLang
-        : 'en-IN';
+    const resolvedSource = resolveLangCode(sourceLang || 'en-IN');
+    const resolvedTarget = resolveLangCode(targetLang || activeElderLang);
 
     const startedAt = Date.now();
     const { spokenMalayalam, audioBase64, traces } = await synthesizeCaregiverBridge(
       messageInput,
-      resolvedLang
+      resolvedSource,
+      resolvedTarget
     );
 
     const reply: CaregiverReply = {
       id: crypto.randomUUID(),
       timestampIso: new Date().toISOString(),
       messageInput,
-      sourceLang: resolvedLang,
+      sourceLang: resolvedSource,
+      targetLang: resolvedTarget,
       spokenMalayalam,
       latencyMs: Date.now() - startedAt,
     };
@@ -324,6 +385,42 @@ app.post('/api/caregiver-reply', async (req, res) => {
   } catch (err) {
     console.error('[kaaval] /api/caregiver-reply error:', err);
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+app.post('/api/whatsapp/test', async (_req, res) => {
+  try {
+    const lanIps = getLanIps();
+    const caregiverUrl =
+      lanIps.length > 0
+        ? `http://${lanIps[0]}:${VITE_DEV_PORT}/caregiver`
+        : `http://localhost:${VITE_DEV_PORT}/caregiver`;
+
+    const prof = BHARAT_LANGUAGES[activeElderLang];
+    const sampleRecord: IncidentRecord = {
+      id: 'wa-test',
+      timestampIso: new Date().toISOString(),
+      trigger: 'FALL_IMPACT_AND_STILLNESS',
+      elderLang: activeElderLang,
+      elderLangLabel: `${prof.nativeName} (${prof.nameEn})`,
+      distanceMeters: 1.18,
+      azimuthDeg: 180,
+      peakMotionEnergy: 5.42,
+      respirationBpmBefore: 16,
+      promptMl: prof.prompts.FALL_IMPACT_AND_STILLNESS,
+      transcriptMl: prof.defaultCaregiverReassurance,
+      transcriptEn: 'Please help me, I slipped near the bedside and cannot stand up.',
+      classification: 'EMERGENCY',
+      clinicalSummaryEn: `Verified fall + 4.0s post-impact stillness in Backside Zone; resident requested help (${prof.nameEn}).`,
+      replyMl: prof.emergencyFallbackReply,
+      sarvamTraces: [],
+    };
+
+    const text = formatWhatsAppIncidentMessage(sampleRecord, caregiverUrl);
+    const result = await sendWhatsAppTextMeBot(text);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ sent: false, detail: (err as Error).message });
   }
 });
 
@@ -448,6 +545,16 @@ hubWss.on('connection', (clientWs, req) => {
     clientWs.send(JSON.stringify({ type: 'room_telemetry', data: latestRoomTelemetry }));
   }
 
+  if (clientWs.readyState === WebSocket.OPEN) {
+    clientWs.send(
+      JSON.stringify({
+        type: 'room_language',
+        elderLang: activeElderLang,
+        autoDetectSpeech,
+      })
+    );
+  }
+
   if (initialRole === 'satellite') {
     broadcastSatelliteStatus();
   } else if (clientWs.readyState === WebSocket.OPEN) {
@@ -529,7 +636,22 @@ hubWss.on('connection', (clientWs, req) => {
   });
 });
 
-sttWss.on('connection', (clientWs) => {
+sttWss.on('connection', (clientWs, req) => {
+  let reqLangParam = activeElderLang;
+  let reqAutoDetect = autoDetectSpeech;
+  try {
+    const parsed = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const qLang = parsed.searchParams.get('lang');
+    const qAuto = parsed.searchParams.get('auto');
+    if (qLang) reqLangParam = resolveLangCode(qLang);
+    if (qAuto === '1' || qAuto === 'true') reqAutoDetect = true;
+    else if (qAuto === '0' || qAuto === 'false') reqAutoDetect = false;
+  } catch {
+    // Keep defaults
+  }
+
+  const upstreamLangParam = reqAutoDetect ? 'unknown' : reqLangParam;
+
   if (sarvamStats.creditGuardLocked) {
     clientWs.on('message', (data, isBinary) => {
       if (!isBinary) {
@@ -554,8 +676,9 @@ sttWss.on('connection', (clientWs) => {
   let partialLatest = '';
   const openedAt = Date.now();
 
-  const upstreamUrl =
-    'wss://api.sarvam.ai/speech-to-text-realtime/ws?language_code=ml-IN&model=saaras:v4&sample_rate=16000';
+  const upstreamUrl = `wss://api.sarvam.ai/speech-to-text-realtime/ws?language_code=${encodeURIComponent(
+    upstreamLangParam
+  )}&model=saaras:v4&sample_rate=16000`;
 
   const upstream = new WebSocket(upstreamUrl, {
     headers: { 'Api-Subscription-Key': apiKey },
@@ -643,13 +766,14 @@ sttWss.on('connection', (clientWs) => {
           if (!gotFinalTranscript && !partialLatest && pcmChunks.length > 8) {
             try {
               const fullPcm = Buffer.concat(pcmChunks);
-              const fb = await transcribeFallbackRest(fullPcm);
+              const fb = await transcribeFallbackRest(fullPcm, upstreamLangParam);
               if (fb.transcript && clientWs.readyState === WebSocket.OPEN) {
                 gotFinalTranscript = true;
                 clientWs.send(
                   JSON.stringify({
                     event: 'transcript.final',
                     text: fb.transcript,
+                    ...(fb.detectedLang ? { language_code: fb.detectedLang } : {}),
                     modelUsed: fb.trace.model,
                     elapsedMs: fb.trace.latencyMs,
                   })
