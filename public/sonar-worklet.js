@@ -801,15 +801,27 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
     const detections = [];
     for (let i = 0; i < rawPeaks.length && detections.length < MAX_PEOPLE; i++) {
       const cand = rawPeaks[i];
-      let tooClose = false;
+      const candMeters = cand.bin * this.metersPerSample;
+      const sinTh = this.computeAzimuthForBin(cand.bin, rightUsable);
+      let suppressed = false;
       for (let j = 0; j < detections.length; j++) {
-        if (Math.abs(cand.bin - detections[j].bin) < this.minPersonSepBins) {
-          tooClose = true;
+        const det = detections[j];
+        if (Math.abs(cand.bin - det.bin) < this.minPersonSepBins) {
+          suppressed = true;
+          break;
+        }
+        // Suppress 2xR Speaker->Torso->Screen->Torso->Mic cavity double-bounce along same azimuth
+        if (
+          candMeters > det.meters &&
+          Math.abs(candMeters - 2.0 * det.meters) <= 0.11 &&
+          Math.abs(sinTh - det.sinTheta) <= 0.28 &&
+          cand.snrRatio < det.snrRatio * 0.72
+        ) {
+          suppressed = true;
           break;
         }
       }
-      if (!tooClose) {
-        const sinTh = this.computeAzimuthForBin(cand.bin, rightUsable);
+      if (!suppressed) {
         const snrDb = 20 * Math.log10(cand.snrRatio);
         // Local motion around this person
         let localMot = 0;
@@ -818,7 +830,7 @@ class KaavalDualWorklet extends AudioWorkletProcessor {
         }
         detections.push({
           bin: cand.bin,
-          meters: cand.bin * this.metersPerSample,
+          meters: candMeters,
           sinTheta: sinTh,
           snrRatio: cand.snrRatio,
           snrDb,

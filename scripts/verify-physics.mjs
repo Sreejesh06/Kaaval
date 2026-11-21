@@ -609,9 +609,44 @@ function main() {
     console.error('FAIL [Test 8]', hostDualFrame?.peopleCount, pocoFrame?.peopleCount, pocoFrame?.targetMeters, pocoBpm);
   }
 
+  // Test 9: Single Floor Occupant @ 0.62m + 35% Double-Bounce Multipath @ 1.24m -> Strictly 1 Person (Never 2!)
+  const bounceWorklet = new KaavalDualWorklet({
+    processorOptions: { sampleRate: fs, stereoCapable: true },
+  });
+  let bounceFrame = null;
+  bounceWorklet.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') bounceFrame = msg;
+  };
+  for (let f = 0; f < 75; f++) {
+    const tSec = f / frameRate;
+    const rPrimary = 0.62 + 0.0025 * Math.sin(2 * Math.PI * 0.28 * tSec);
+    const rDoubleBounce = 2.0 * rPrimary; // Classic Speaker->Torso->Screen->Torso->Mic mirror echo!
+    bounceWorklet.rxBuf.fill(0);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay, 0.85, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay, 0.80, fs, FR_START, FR_END, N);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay + rPrimary / metersPerSample, 0.045, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay + rPrimary / metersPerSample, 0.042, fs, FR_START, FR_END, N);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay + rDoubleBounce / metersPerSample, 0.016, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(bounceWorklet.rxBuf, directDelay + rDoubleBounce / metersPerSample, 0.015, fs, FR_START, FR_END, N);
+    for (let n = 0; n < N; n++) bounceWorklet.rxBuf[n] += nextNoise();
+    bounceWorklet.processRadarFrame();
+  }
+  if (
+    bounceFrame &&
+    bounceFrame.peopleCount === 1 &&
+    Math.abs(bounceFrame.targetMeters - 0.62) < 0.05
+  ) {
+    console.log(
+      `PASS [Test 9 | Double-Bounce 2xR Ghost Reject] primary=0.62m + mirror=1.24m -> peopleCount=1 (${bounceFrame.targetMeters.toFixed(2)}m)`
+    );
+  } else {
+    failures.push(`Test 9 double-bounce ghost failed: count=${bounceFrame?.peopleCount}`);
+    console.error('FAIL [Test 9]', bounceFrame?.peopleCount, bounceFrame?.targets);
+  }
+
   const elapsedMs = performance.now() - tStart;
   if (failures.length === 0 && elapsedMs < 2500) {
-    console.log(`VERDICT: PASS (8/8 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
+    console.log(`VERDICT: PASS (9/9 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
     process.exit(0);
   } else {
     if (elapsedMs >= 2500) {

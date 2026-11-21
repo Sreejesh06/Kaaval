@@ -8,13 +8,8 @@ import type {
   RadarFrame,
   SatelliteTelemetry,
 } from '../types';
-import {
-  IconMicCheck,
-  IconPhonePair,
-  IconSliders,
-  IconSonarWave,
-  KaavalNavbarBrand,
-} from './BrandAndIcons';
+import { ArborFooter, ArborNavbar, type ArborRoute } from './ArborChrome';
+import { IconMicCheck, IconPhonePair, IconSliders } from './BrandAndIcons';
 import { SaasOverview } from './SaasOverview';
 import { RadarScopes } from './RadarScopes';
 import { SonicIronbowView } from './SonicIronbowView';
@@ -36,6 +31,33 @@ const EMPTY_BENCHMARK: BenchmarkSummary = {
   falseAlarmRatePct: 0,
   fallRecallPct: 0,
 };
+
+function resolveRouteFromUrl(): ArborRoute {
+  if (typeof window === 'undefined') return 'OVERVIEW';
+  const path = window.location.pathname;
+  const view = new URLSearchParams(window.location.search).get('view');
+  if (path.startsWith('/caregiver') || view === 'caregiver') return 'CAREGIVER';
+  if (path.startsWith('/satellite') || view === 'satellite') return 'SATELLITE';
+  if (view === 'console') return 'CONSOLE';
+  if (view === 'benchmark') return 'BENCHMARK';
+  return 'OVERVIEW';
+}
+
+function routeToPath(route: ArborRoute): string {
+  switch (route) {
+    case 'CAREGIVER':
+      return '/caregiver';
+    case 'SATELLITE':
+      return '/satellite';
+    case 'CONSOLE':
+      return '/?view=console';
+    case 'BENCHMARK':
+      return '/?view=benchmark';
+    case 'OVERVIEW':
+    default:
+      return '/';
+  }
+}
 
 function formatGuardStatus(mode: GuardMode, prealertLeftSec: number): string {
   switch (mode) {
@@ -59,26 +81,8 @@ function formatGuardStatus(mode: GuardMode, prealertLeftSec: number): string {
 }
 
 export const App: React.FC = () => {
-  const initialCaregiverRoute =
-    typeof window !== 'undefined' &&
-    (window.location.pathname.startsWith('/caregiver') ||
-      new URLSearchParams(window.location.search).get('view') === 'caregiver');
-
-  const initialSatelliteRoute =
-    typeof window !== 'undefined' &&
-    (window.location.pathname.startsWith('/satellite') ||
-      new URLSearchParams(window.location.search).get('view') === 'satellite');
-
-  const initialTab =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('view') === 'console'
-      ? 'CONSOLE'
-      : 'OVERVIEW';
-
-  const [isCaregiverScreen, setIsCaregiverScreen] = useState<boolean>(initialCaregiverRoute);
-  const [isSatelliteScreen, setIsSatelliteScreen] = useState<boolean>(initialSatelliteRoute);
+  const [activeRoute, setActiveRoute] = useState<ArborRoute>(resolveRouteFromUrl);
   const [guardMode, setGuardMode] = useState<GuardMode>('OFFLINE');
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CONSOLE' | 'BENCHMARK'>(initialTab);
   const [viewMode, setViewMode] = useState<'IRONBOW' | 'SONAR3D'>('IRONBOW');
   const [creditLocked, setCreditLocked] = useState<boolean>(true);
   const [autoTriggerEnabled, setAutoTriggerEnabled] = useState<boolean>(false);
@@ -114,6 +118,12 @@ export const App: React.FC = () => {
   const [voiceRmsDb, setVoiceRmsDb] = useState<number>(-65);
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [sarvamCallCount, setSarvamCallCount] = useState<number>(0);
+  const [waStatus, setWaStatus] = useState<{
+    configured: boolean;
+    recipient: string;
+    sending: boolean;
+    feedback: string;
+  }>({ configured: false, recipient: '', sending: false, feedback: '' });
   const [benchmark, setBenchmark] = useState<BenchmarkSummary>(EMPTY_BENCHMARK);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -160,13 +170,37 @@ export const App: React.FC = () => {
   const hudRef = useRef(hud);
   hudRef.current = hud;
 
+  const navigateTo = useCallback((next: ArborRoute) => {
+    setActiveRoute(next);
+    const targetPath = routeToPath(next);
+    if (window.location.pathname + window.location.search !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   useEffect(() => {
-    if (isCaregiverScreen || isSatelliteScreen) return;
+    const onPop = () => setActiveRoute(resolveRouteFromUrl());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const isCompanionOnlyRoute = activeRoute === 'CAREGIVER' || activeRoute === 'SATELLITE';
+
+  useEffect(() => {
+    if (isCompanionOnlyRoute) return;
 
     fetch('/api/health')
       .then((r) => r.json())
       .then((h) => {
         if (typeof h.creditGuardLocked === 'boolean') setCreditLocked(h.creditGuardLocked);
+        if (typeof h.whatsappConfigured === 'boolean') {
+          setWaStatus((prev) => ({
+            ...prev,
+            configured: h.whatsappConfigured,
+            recipient: h.whatsappRecipient || '',
+          }));
+        }
       })
       .catch(() => {});
 
@@ -265,7 +299,7 @@ export const App: React.FC = () => {
       window.clearTimeout(retryId);
       hubWsRef.current?.close();
     };
-  }, [isCaregiverScreen, isSatelliteScreen]);
+  }, [isCompanionOnlyRoute]);
 
   const notifySatelliteVoiceGate = (paused: boolean) => {
     if (hubWsRef.current?.readyState === WebSocket.OPEN) {
@@ -510,11 +544,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const armAndOpenConsole = async () => {
-    setActiveTab('CONSOLE');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleGlobalPrimaryAction = async () => {
+    if (activeRoute !== 'CONSOLE' && activeRoute !== 'BENCHMARK') {
+      navigateTo('CONSOLE');
+    }
     if (guardMode === 'OFFLINE') {
       await armSonar();
+    } else if (activeRoute === 'CONSOLE') {
+      engineRef.current?.zeroClutter();
     }
   };
 
@@ -529,14 +566,6 @@ export const App: React.FC = () => {
     setCreditLocked(Boolean(d.creditGuardLocked));
   };
 
-  if (isCaregiverScreen) {
-    return <CaregiverView onBackToConsole={() => setIsCaregiverScreen(false)} />;
-  }
-
-  if (isSatelliteScreen) {
-    return <SatelliteNodeView onBackToConsole={() => setIsSatelliteScreen(false)} />;
-  }
-
   const sonarArmed = guardMode !== 'OFFLINE';
   const ledClass =
     guardMode === 'OFFLINE'
@@ -548,466 +577,423 @@ export const App: React.FC = () => {
       : 'on-red';
 
   return (
-    <div>
-      {/* 1. Single-Row Sleek Obsidian SaaS Topbar */}
-      <header className="gx-nav-wrap">
-        <nav className="gx-nav" aria-label="Primary product navigation">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <KaavalNavbarBrand
-              onClick={() => {
-                setActiveTab('OVERVIEW');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
+    <div className="app-frame">
+      {/* Persistent Global Arbor Navbar — 100% locked coordinates across ALL 5 routes */}
+      <ArborNavbar
+        activeRoute={activeRoute}
+        sonarArmed={sonarArmed}
+        onNavigate={navigateTo}
+        onPrimaryAction={handleGlobalPrimaryAction}
+      />
 
-            <span className="status-inline">
-              <span className={`led ${ledClass}`} />
-              <span>{formatGuardStatus(guardMode, prealertLeftSec)}</span>
-            </span>
-
-            {satConnected && (
-              <span className="status-inline">
-                <span className={`led ${satArmed ? 'on-teal' : 'on-amber'}`} />
-                <span>{satArmed ? 'POCO Node B armed' : 'POCO Node B linked'}</span>
-              </span>
-            )}
-
-            {errorMsg && <span className="err-inline">{errorMsg}</span>}
-          </div>
-
-          <div className="gx-nav-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'OVERVIEW'}
-              className={`gx-nav-tab ${activeTab === 'OVERVIEW' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('OVERVIEW');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              Product overview
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'CONSOLE'}
-              className={`gx-nav-tab ${activeTab === 'CONSOLE' ? 'active' : ''}`}
-              onClick={() => setActiveTab('CONSOLE')}
-            >
-              Live console
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'BENCHMARK'}
-              className={`gx-nav-tab ${activeTab === 'BENCHMARK' ? 'active' : ''}`}
-              onClick={() => setActiveTab('BENCHMARK')}
-            >
-              Benchmark ({benchmark.trials.length})
-            </button>
-            <button
-              type="button"
-              className="gx-nav-tab"
-              onClick={() => setIsCaregiverScreen(true)}
-            >
-              Caregiver app
-            </button>
-          </div>
-
-          <div className="gx-nav-actions">
-            <button
-              type="button"
-              className={creditLocked ? '' : 'btn-green'}
-              onClick={toggleCreditGuard}
-              title="Protects Sarvam API credits while testing sonar. Toggle to Sarvam live only for spoken voice check-in demos."
-            >
-              {creditLocked ? '0-credit lock' : 'Sarvam live'}
-            </button>
-
-            {!sonarArmed ? (
-              <button
-                type="button"
-                className="btn-arm"
-                onClick={activeTab === 'OVERVIEW' ? armAndOpenConsole : armSonar}
-              >
-                <IconSonarWave size={16} />
-                Arm sonar
-              </button>
-            ) : activeTab === 'OVERVIEW' ? (
-              <button
-                type="button"
-                className="btn-arm"
-                onClick={() => setActiveTab('CONSOLE')}
-              >
-                Open console
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn-green"
-                onClick={() => engineRef.current?.zeroClutter()}
-              >
-                Zero clutter
-              </button>
-            )}
-          </div>
-        </nav>
-      </header>
-
-      {activeTab === 'OVERVIEW' ? (
-        <SaasOverview
-          sonarArmed={sonarArmed}
-          benchmarkTrialsCount={benchmark.trials.length}
-          onOpenConsole={() => {
-            setActiveTab('CONSOLE');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onArmAndOpenConsole={armAndOpenConsole}
-          onOpenCaregiver={() => {
-            setIsCaregiverScreen(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onOpenBenchmark={() => {
-            setActiveTab('BENCHMARK');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-        />
-      ) : (
-        <>
-          {/* 2. Signature Electric Cobalt Console Command Band */}
-          <div className="console-command-band">
-            <div className="console-command-inner">
-              <div className="console-command-title">
-                <h1>
-                  {activeTab === 'CONSOLE'
-                    ? 'Live room acoustic console'
-                    : 'Houseboat 4×4 acoustic benchmark'}
-                </h1>
-                <span>
-                  {satArmed
-                    ? '3-band FDMA whole-room mesh (Laptop + POCO Node B) · 0 px camera'
-                    : '17.60–20.25 kHz stereo FDMA · Hardware camera strictly off'}
-                </span>
-              </div>
-
-              <div className="console-command-controls">
-                <button
-                  type="button"
-                  className={autoTriggerEnabled ? 'pill-on' : ''}
-                  onClick={() => setAutoTriggerEnabled((v) => !v)}
-                  title="Enable autonomous fall + stillness voice check-in"
-                >
-                  {autoTriggerEnabled ? 'Auto-fall: on' : 'Auto-fall: paused'}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={
-                    !sonarArmed ||
-                    guardMode === 'LISTENING_CONSENT' ||
-                    guardMode === 'PLAYING_PROMPT' ||
-                    guardMode === 'TRIAGING_RESPONSE'
-                  }
-                  onClick={() =>
-                    runConsentCheckIn(
-                      'MANUAL_VERIFICATION_TEST',
-                      hud.distanceM,
-                      hud.motionEnergy,
-                      hud.bpm,
-                      hud.azimuthDeg
-                    )
-                  }
-                >
-                  <IconMicCheck size={15} />
-                  Voice check-in
-                </button>
-
-                <button
-                  type="button"
-                  className={showPairBar ? 'pill-on' : ''}
-                  onClick={() => setShowPairBar((v) => !v)}
-                >
-                  <IconPhonePair size={15} />
-                  Pair phones
-                </button>
-
-                <button
-                  type="button"
-                  className={showTune ? 'pill-on' : ''}
-                  onClick={() => setShowTune((v) => !v)}
-                >
-                  <IconSliders size={15} />
-                  Tune
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="shell">
-            {showPairBar && (
-              <div className="pair-bar">
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <div>
-                    <strong style={{ color: 'var(--lime)' }}>Caregiver phone app:</strong>{' '}
-                    {lanUrls.map((u) => (
-                      <a
-                        key={u}
-                        href={u}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mono"
-                        style={{
-                          color: 'var(--white)',
-                          marginLeft: 8,
-                          marginRight: 12,
-                          textDecorationColor: 'var(--lime)',
-                        }}
-                      >
-                        {u}
-                      </a>
-                    ))}
-                  </div>
-                  <div>
-                    <strong style={{ color: 'var(--lilac)' }}>
-                      POCO M2 Pro backside satellite (HTTPS):
-                    </strong>{' '}
-                    {satHttpsUrls.map((u) => (
-                      <a
-                        key={u}
-                        href={u}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mono"
-                        style={{
-                          color: 'var(--white)',
-                          marginLeft: 8,
-                          marginRight: 12,
-                          textDecorationColor: 'var(--lilac)',
-                        }}
-                      >
-                        {u}
-                      </a>
-                    ))}
-                  </div>
+      <div className="app-body">
+        {activeRoute === 'CAREGIVER' ? (
+          <CaregiverView onBackToConsole={() => navigateTo('CONSOLE')} />
+        ) : activeRoute === 'SATELLITE' ? (
+          <SatelliteNodeView onBackToConsole={() => navigateTo('CONSOLE')} />
+        ) : activeRoute === 'OVERVIEW' ? (
+          <SaasOverview
+            sonarArmed={sonarArmed}
+            benchmarkTrialsCount={benchmark.trials.length}
+            onOpenConsole={() => navigateTo('CONSOLE')}
+            onArmAndOpenConsole={async () => {
+              navigateTo('CONSOLE');
+              if (guardMode === 'OFFLINE') await armSonar();
+            }}
+            onOpenCaregiver={() => navigateTo('CAREGIVER')}
+            onOpenBenchmark={() => navigateTo('BENCHMARK')}
+          />
+        ) : (
+          <>
+            {/* Signature Electric Cobalt Console Command Band */}
+            <div className="console-command-band">
+              <div className="console-command-inner">
+                <div className="console-command-title">
+                  <h1>
+                    {activeRoute === 'CONSOLE'
+                      ? 'Live room acoustic console'
+                      : 'Houseboat 4×4 acoustic benchmark'}
+                  </h1>
+                  <span>
+                    {satArmed
+                      ? '3-band FDMA whole-room mesh (Laptop + POCO Node B) · 0 px camera'
+                      : '17.60–20.25 kHz stereo FDMA · Hardware camera strictly off'}
+                  </span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+
+                <div className="console-command-controls">
+                  <span className="status-inline">
+                    <span className={`led ${ledClass}`} />
+                    <span>{formatGuardStatus(guardMode, prealertLeftSec)}</span>
+                  </span>
+
+                  {satConnected && (
+                    <span className="status-inline">
+                      <span className={`led ${satArmed ? 'on-teal' : 'on-amber'}`} />
+                      <span>{satArmed ? 'POCO Node B armed' : 'POCO Node B linked'}</span>
+                    </span>
+                  )}
+
+                  {errorMsg && <span className="err-inline">{errorMsg}</span>}
+
                   <button
                     type="button"
-                    onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}
+                    className={!creditLocked ? 'pill-on' : ''}
+                    onClick={toggleCreditGuard}
+                    title="Protects Sarvam API credits while testing sonar. Toggle to Sarvam live only for spoken voice check-in demos."
                   >
-                    Caregiver window
+                    {creditLocked ? '0-credit lock' : 'Sarvam live'}
                   </button>
-                  <button type="button" onClick={() => setIsSatelliteScreen(true)}>
-                    Satellite view
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {showTune && (
-              <div className="tune-drawer">
-                <label className="ctrl-inline">
-                  Range gate:
-                  <select
-                    value={rangeLockM}
-                    onChange={(e) => {
-                      const m = parseFloat(e.target.value);
-                      setRangeLockM(m);
-                      engineRef.current?.setRangeLock(m);
-                    }}
-                  >
-                    <option value={0}>Auto-track (0.32–3.0m)</option>
-                    <option value={0.55}>0.55 m</option>
-                    <option value={0.85}>0.85 m</option>
-                    <option value={1.25}>1.25 m</option>
-                    <option value={1.8}>1.80 m</option>
-                  </select>
-                </label>
-
-                <label className="ctrl-inline">
-                  Fall threshold ({fallThreshold.toFixed(1)}):
-                  <input
-                    type="range"
-                    min="2.5"
-                    max="10"
-                    step="0.5"
-                    value={fallThreshold}
-                    onChange={(e) => setFallThreshold(parseFloat(e.target.value))}
-                  />
-                </label>
-
-                <label className="ctrl-inline">
-                  Apnea watch:
-                  <select
-                    value={apneaLimitSec}
-                    onChange={(e) => {
-                      stillnessSinceMsRef.current = performance.now();
-                      setApneaLimitSec(Number(e.target.value));
-                    }}
-                  >
-                    <option value={0}>Off</option>
-                    <option value={12}>12s (Demo)</option>
-                    <option value={30}>30s (Cabin)</option>
-                    <option value={2700}>45m (Home)</option>
-                  </select>
-                </label>
-
-                <label className="ctrl-inline">
-                  Speaker gain ({Math.round(txGain * 100)}%):
-                  <input
-                    type="range"
-                    min="0.15"
-                    max="0.9"
-                    step="0.05"
-                    value={txGain}
-                    onChange={(e) => {
-                      const g = parseFloat(e.target.value);
-                      setTxGain(g);
-                      engineRef.current?.setGain(g);
-                    }}
-                  />
-                </label>
-
-                <button type="button" onClick={() => engineRef.current?.recalibrateDirectPath()}>
-                  Re-lock direct path
-                </button>
-
-                <span
-                  className="mono"
-                  style={{ fontSize: 11.5, color: 'var(--muted-on-dark)', marginLeft: 'auto' }}
-                >
-                  {sampleRate} Hz · Sarvam calls: {sarvamCallCount}
-                </span>
-              </div>
-            )}
-
-            {/* 3. Unified 5-Column Telemetry Ribbon */}
-            <section className="metric-bar" aria-label="Live room telemetry">
-              <div className="metric-cell">
-                <span className="readout-k">
-                  <span
-                    className={`led ${
-                      (sonarArmed || satArmed) && hud.peopleCount > 0 ? 'on-teal' : ''
-                    }`}
-                  />
-                  Room occupancy
-                </span>
-                <span className="metric-val teal">
-                  {!sonarArmed && !satArmed
-                    ? '--'
-                    : hud.peopleCount === 0
-                    ? '0 · Empty'
-                    : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${
-                        hud.azimuthDeg >= 0 ? '+' : ''
-                      }${hud.azimuthDeg.toFixed(0)}°)`}
-                </span>
-              </div>
-              <div className="metric-cell">
-                <span className="readout-k">Chest phase</span>
-                <span className="metric-val">
-                  {sonarArmed
-                    ? `${hud.dispMm >= 0 ? '+' : ''}${hud.dispMm.toFixed(2)} mm`
-                    : '--'}
-                </span>
-              </div>
-              <div className="metric-cell">
-                <span className="readout-k">Respiration</span>
-                <span className="metric-val teal">
-                  {hud.bpm
-                    ? `${hud.bpm.toFixed(0)} BPM`
-                    : sonarArmed || satArmed
-                    ? 'Acquiring'
-                    : '--'}
-                </span>
-              </div>
-              <div className="metric-cell">
-                <span className="readout-k">Motion impulse</span>
-                <span
-                  className={`metric-val ${hud.motionEnergy >= fallThreshold ? 'amber' : ''}`}
-                >
-                  {sonarArmed || satArmed ? hud.motionEnergy.toFixed(2) : '--'}
-                </span>
-              </div>
-              <div className="metric-cell">
-                <span className="readout-k">
-                  <span
-                    className={`led ${
-                      guardMode === 'LISTENING_CONSENT' ? 'on-amber' : 'on-red'
-                    }`}
-                  />
-                  Speech (&lt;17.5 kHz)
-                </span>
-                <span className="metric-val red">
-                  {guardMode === 'LISTENING_CONSENT'
-                    ? `Open ${consentRemainingSec.toFixed(0)}s`
-                    : 'Zeroed'}
-                </span>
-              </div>
-            </section>
-
-            {activeTab === 'CONSOLE' ? (
-              <main className="console-layout">
-                <div>
-                  {viewMode === 'IRONBOW' ? (
-                    <SonicIronbowView
-                      latestFrameRef={latestFrameRef}
-                      satelliteRef={satelliteRef}
-                      frameSeqRef={frameSeqRef}
-                      guardMode={guardMode}
-                      sonarArmed={sonarArmed}
-                      snapshotGetterRef={snapshotGetterRef}
-                      onSwitchTo3D={() => setViewMode('SONAR3D')}
-                      onRequestArm={armSonar}
-                    />
-                  ) : (
-                    <SpatialField3D
-                      latestFrameRef={latestFrameRef}
-                      satelliteRef={satelliteRef}
-                      frameSeqRef={frameSeqRef}
-                      guardMode={guardMode}
-                      sonarArmed={sonarArmed}
-                      onSwitchToIronbow={() => setViewMode('IRONBOW')}
-                      onRequestArm={armSonar}
-                    />
+                  {sonarArmed && (
+                    <button
+                      type="button"
+                      onClick={() => engineRef.current?.zeroClutter()}
+                    >
+                      Zero clutter
+                    </button>
                   )}
-                  <RadarScopes
-                    latestFrameRef={latestFrameRef}
-                    frameSeqRef={frameSeqRef}
-                    guardMode={guardMode}
-                    fallThreshold={fallThreshold}
-                  />
+
+                  <button
+                    type="button"
+                    className={autoTriggerEnabled ? 'pill-on' : ''}
+                    onClick={() => setAutoTriggerEnabled((v) => !v)}
+                    title="Enable autonomous fall + stillness voice check-in"
+                  >
+                    {autoTriggerEnabled ? 'Auto-fall: on' : 'Auto-fall: paused'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      !sonarArmed ||
+                      guardMode === 'LISTENING_CONSENT' ||
+                      guardMode === 'PLAYING_PROMPT' ||
+                      guardMode === 'TRIAGING_RESPONSE'
+                    }
+                    onClick={() =>
+                      runConsentCheckIn(
+                        'MANUAL_VERIFICATION_TEST',
+                        hud.distanceM,
+                        hud.motionEnergy,
+                        hud.bpm,
+                        hud.azimuthDeg
+                      )
+                    }
+                  >
+                    <IconMicCheck size={15} />
+                    Voice check-in
+                  </button>
+
+                  <button
+                    type="button"
+                    className={showPairBar ? 'pill-on' : ''}
+                    onClick={() => setShowPairBar((v) => !v)}
+                  >
+                    <IconPhonePair size={15} />
+                    Pair phones
+                  </button>
+
+                  <button
+                    type="button"
+                    className={showTune ? 'pill-on' : ''}
+                    onClick={() => setShowTune((v) => !v)}
+                  >
+                    <IconSliders size={15} />
+                    Tune
+                  </button>
                 </div>
-                <TriageTimeline
-                  guardMode={guardMode}
-                  activePromptMl={activePromptMl}
-                  liveTranscriptMl={liveTranscriptMl}
-                  vadActive={vadActive}
-                  consentRemainingSec={consentRemainingSec}
-                  voiceRmsDb={voiceRmsDb}
-                  incidents={incidents}
-                  onReplayAudio={async (b64) => {
-                    if (!engineRef.current) return;
-                    engineRef.current.setWorkletMode('VOICE_PAUSE');
-                    await engineRef.current.playAlertToneAndBase64Audio(b64, false);
-                    engineRef.current.setWorkletMode('SONAR_LOCKED');
+              </div>
+            </div>
+
+            <div className="shell">
+              {showPairBar && (
+                <div className="pair-bar">
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div>
+                      <strong style={{ color: 'var(--content-primary)' }}>
+                        Caregiver phone app:
+                      </strong>{' '}
+                      {lanUrls.map((u) => (
+                        <a
+                          key={u}
+                          href={u}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mono"
+                          style={{
+                            color: 'var(--accent)',
+                            marginLeft: 8,
+                            marginRight: 12,
+                          }}
+                        >
+                          {u}
+                        </a>
+                      ))}
+                    </div>
+                    <div>
+                      <strong style={{ color: 'var(--content-primary)' }}>
+                        POCO M2 Pro backside satellite (HTTPS):
+                      </strong>{' '}
+                      {satHttpsUrls.map((u) => (
+                        <a
+                          key={u}
+                          href={u}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mono"
+                          style={{
+                            color: 'var(--content-secondary)',
+                            marginLeft: 8,
+                            marginRight: 12,
+                          }}
+                        >
+                          {u}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}
+                    >
+                      Caregiver window
+                    </button>
+                    <button type="button" onClick={() => navigateTo('SATELLITE')}>
+                      Satellite view
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showTune && (
+                <div className="tune-drawer">
+                  <label className="ctrl-inline">
+                    Range gate:
+                    <select
+                      value={rangeLockM}
+                      onChange={(e) => {
+                        const m = parseFloat(e.target.value);
+                        setRangeLockM(m);
+                        engineRef.current?.setRangeLock(m);
+                      }}
+                    >
+                      <option value={0}>Auto-track (0.32–3.0m)</option>
+                      <option value={0.55}>0.55 m</option>
+                      <option value={0.85}>0.85 m</option>
+                      <option value={1.25}>1.25 m</option>
+                      <option value={1.8}>1.80 m</option>
+                    </select>
+                  </label>
+
+                  <label className="ctrl-inline">
+                    Fall threshold ({fallThreshold.toFixed(1)}):
+                    <input
+                      type="range"
+                      min="2.5"
+                      max="10"
+                      step="0.5"
+                      value={fallThreshold}
+                      onChange={(e) => setFallThreshold(parseFloat(e.target.value))}
+                    />
+                  </label>
+
+                  <label className="ctrl-inline">
+                    Apnea watch:
+                    <select
+                      value={apneaLimitSec}
+                      onChange={(e) => {
+                        stillnessSinceMsRef.current = performance.now();
+                        setApneaLimitSec(Number(e.target.value));
+                      }}
+                    >
+                      <option value={0}>Off</option>
+                      <option value={12}>12s (Demo)</option>
+                      <option value={30}>30s (Cabin)</option>
+                      <option value={2700}>45m (Home)</option>
+                    </select>
+                  </label>
+
+                  <label className="ctrl-inline">
+                    Speaker gain ({Math.round(txGain * 100)}%):
+                    <input
+                      type="range"
+                      min="0.15"
+                      max="0.9"
+                      step="0.05"
+                      value={txGain}
+                      onChange={(e) => {
+                        const g = parseFloat(e.target.value);
+                        setTxGain(g);
+                        engineRef.current?.setGain(g);
+                      }}
+                    />
+                  </label>
+
+                  <button type="button" onClick={() => engineRef.current?.recalibrateDirectPath()}>
+                    Re-lock direct path
+                  </button>
+
+                  <span
+                    className="mono"
+                    style={{ fontSize: 11.5, color: 'var(--content-muted)', marginLeft: 'auto' }}
+                  >
+                    {sampleRate} Hz · Sarvam calls: {sarvamCallCount}
+                  </span>
+                </div>
+              )}
+
+              {/* Unified 5-Column Telemetry Ribbon */}
+              <section className="metric-bar" aria-label="Live room telemetry">
+                <div className="metric-cell">
+                  <span className="readout-k">
+                    <span
+                      className={`led ${
+                        (sonarArmed || satArmed) && hud.peopleCount > 0 ? 'on-teal' : ''
+                      }`}
+                    />
+                    Room occupancy
+                  </span>
+                  <span className="metric-val teal">
+                    {!sonarArmed && !satArmed
+                      ? '--'
+                      : hud.peopleCount === 0
+                      ? '0 · Empty'
+                      : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${
+                          hud.azimuthDeg >= 0 ? '+' : ''
+                        }${hud.azimuthDeg.toFixed(0)}°)`}
+                  </span>
+                </div>
+                <div className="metric-cell">
+                  <span className="readout-k">Chest phase</span>
+                  <span className="metric-val">
+                    {sonarArmed
+                      ? `${hud.dispMm >= 0 ? '+' : ''}${hud.dispMm.toFixed(2)} mm`
+                      : '--'}
+                  </span>
+                </div>
+                <div className="metric-cell">
+                  <span className="readout-k">Respiration</span>
+                  <span className="metric-val teal">
+                    {hud.bpm
+                      ? `${hud.bpm.toFixed(0)} BPM`
+                      : sonarArmed || satArmed
+                      ? 'Acquiring'
+                      : '--'}
+                  </span>
+                </div>
+                <div className="metric-cell">
+                  <span className="readout-k">Motion impulse</span>
+                  <span
+                    className={`metric-val ${hud.motionEnergy >= fallThreshold ? 'amber' : ''}`}
+                  >
+                    {sonarArmed || satArmed ? hud.motionEnergy.toFixed(2) : '--'}
+                  </span>
+                </div>
+                <div className="metric-cell">
+                  <span className="readout-k">
+                    <span
+                      className={`led ${
+                        guardMode === 'LISTENING_CONSENT' ? 'on-amber' : 'on-red'
+                      }`}
+                    />
+                    Speech (&lt;17.5 kHz)
+                  </span>
+                  <span className="metric-val red">
+                    {guardMode === 'LISTENING_CONSENT'
+                      ? `Open ${consentRemainingSec.toFixed(0)}s`
+                      : 'Zeroed'}
+                  </span>
+                </div>
+              </section>
+
+              {activeRoute === 'CONSOLE' ? (
+                <main className="console-layout">
+                  <div>
+                    {viewMode === 'IRONBOW' ? (
+                      <SonicIronbowView
+                        latestFrameRef={latestFrameRef}
+                        satelliteRef={satelliteRef}
+                        frameSeqRef={frameSeqRef}
+                        guardMode={guardMode}
+                        sonarArmed={sonarArmed}
+                        snapshotGetterRef={snapshotGetterRef}
+                        onSwitchTo3D={() => setViewMode('SONAR3D')}
+                        onRequestArm={armSonar}
+                      />
+                    ) : (
+                      <SpatialField3D
+                        latestFrameRef={latestFrameRef}
+                        satelliteRef={satelliteRef}
+                        frameSeqRef={frameSeqRef}
+                        guardMode={guardMode}
+                        sonarArmed={sonarArmed}
+                        onSwitchToIronbow={() => setViewMode('IRONBOW')}
+                        onRequestArm={armSonar}
+                      />
+                    )}
+                    <RadarScopes
+                      latestFrameRef={latestFrameRef}
+                      frameSeqRef={frameSeqRef}
+                      guardMode={guardMode}
+                      fallThreshold={fallThreshold}
+                    />
+                  </div>
+                  <TriageTimeline
+                    guardMode={guardMode}
+                    sonarArmed={sonarArmed}
+                    activePromptMl={activePromptMl}
+                    liveTranscriptMl={liveTranscriptMl}
+                    vadActive={vadActive}
+                    consentRemainingSec={consentRemainingSec}
+                    voiceRmsDb={voiceRmsDb}
+                    incidents={incidents}
+                    onRequestArm={armSonar}
+                    onTriggerTestCheckin={() =>
+                      runConsentCheckIn(
+                        'MANUAL_VERIFICATION_TEST',
+                        hud.distanceM,
+                        hud.motionEnergy,
+                        hud.bpm,
+                        hud.azimuthDeg
+                      )
+                    }
+                    onReplayAudio={async (b64) => {
+                      if (!engineRef.current) return;
+                      engineRef.current.setWorkletMode('VOICE_PAUSE');
+                      await engineRef.current.playAlertToneAndBase64Audio(b64, false);
+                      engineRef.current.setWorkletMode('SONAR_LOCKED');
+                    }}
+                  />
+                </main>
+              ) : (
+                <BenchmarkPanel
+                  summary={benchmark}
+                  sonarArmed={sonarArmed}
+                  onRequestArm={armSonar}
+                  subscribeFrames={(cb) => {
+                    trialSubscriberRef.current = cb;
                   }}
+                  onSummaryUpdated={setBenchmark}
                 />
-              </main>
-            ) : (
-              <BenchmarkPanel
-                summary={benchmark}
-                sonarArmed={sonarArmed}
-                onRequestArm={armSonar}
-                subscribeFrames={(cb) => {
-                  trialSubscriberRef.current = cb;
-                }}
-                onSummaryUpdated={setBenchmark}
-              />
-            )}
-          </div>
-        </>
-      )}
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Persistent Global Arbor Footer — present across ALL 5 routes */}
+      <ArborFooter
+        activeRoute={activeRoute}
+        sonarArmed={sonarArmed}
+        creditLocked={creditLocked}
+        benchmarkTrialsCount={benchmark.trials.length}
+        lanCaregiverUrl={lanUrls[0]}
+        onNavigate={navigateTo}
+        onToggleCreditLock={toggleCreditGuard}
+        onPrimaryAction={handleGlobalPrimaryAction}
+      />
     </div>
   );
 };

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import type { GuardMode, IncidentRecord } from '../types';
-import { KaavalNavbarBrand } from './BrandAndIcons';
 
 interface RoomHeartbeat {
   guardMode: GuardMode;
+  peopleCount?: number;
   distanceM: number;
   azimuthDeg: number;
   bpm: number | null;
@@ -45,12 +45,14 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
   const [sending, setSending] = useState<boolean>(false);
   const [lastSpokenMl, setLastSpokenMl] = useState<string>('');
   const [creditLocked, setCreditLocked] = useState<boolean>(true);
+  const [waRecipient, setWaRecipient] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/health')
       .then((r) => r.json())
       .then((h) => {
         if (typeof h.creditGuardLocked === 'boolean') setCreditLocked(h.creditGuardLocked);
+        if (h.whatsappConfigured && h.whatsappRecipient) setWaRecipient(h.whatsappRecipient);
       })
       .catch(() => {});
 
@@ -139,29 +141,29 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
 
   return (
     <div>
-      <header className="gx-nav-wrap">
-        <nav className="gx-nav" style={{ maxWidth: 760 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-            <KaavalNavbarBrand onClick={onBackToConsole} />
+      <div className="console-command-band">
+        <div className="console-command-inner">
+          <div className="console-command-title">
+            <h1>Caregiver mobile companion</h1>
+            <span>കുടുംബ കണ്ണി · Two-way Malayalam room voice bridge</span>
+          </div>
+
+          <div className="console-command-controls">
             <span className="status-inline">
               <span className={`led ${wsConnected ? 'on-teal' : 'on-red'}`} />
               <span>{wsConnected ? 'Live room link' : 'Reconnecting'}</span>
             </span>
-          </div>
-
-          {onBackToConsole && (
-            <button type="button" onClick={onBackToConsole}>
-              Room console
-            </button>
-          )}
-        </nav>
-      </header>
-
-      <div className="console-command-band">
-        <div className="console-command-inner" style={{ maxWidth: 760 }}>
-          <div className="console-command-title">
-            <h1>Caregiver mobile companion</h1>
-            <span>കുടുംബ കണ്ണി · Two-way Malayalam room voice bridge</span>
+            {waRecipient && (
+              <span className="status-inline" title="TextMeBot WhatsApp alert dispatch enabled">
+                <span className="led on-teal" />
+                <span>WhatsApp: {waRecipient}</span>
+              </span>
+            )}
+            {onBackToConsole && (
+              <button type="button" onClick={onBackToConsole}>
+                Open room console
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -169,11 +171,14 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
       <div className="caregiver-shell">
         {latestEmergency && (
           <div className="cg-alert-banner">
-            <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--pink)' }}>
+            <div
+              className="mono"
+              style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--status-danger)' }}
+            >
               Active {latestEmergency.classification.toLowerCase()} alert ·{' '}
               {new Date(latestEmergency.timestampIso).toLocaleTimeString()}
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 4 }}>
               {latestEmergency.clinicalSummaryEn}
             </div>
           </div>
@@ -189,20 +194,26 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
             </span>
           </div>
           <div className="metric-cell">
-            <span className="readout-k">Distance</span>
+            <span className="readout-k">Occupancy &amp; zone</span>
             <span className="metric-val" style={{ fontSize: 17 }}>
-              {heartbeat.guardMode !== 'OFFLINE' ? `${heartbeat.distanceM.toFixed(2)}m` : '--'}
+              {heartbeat.guardMode === 'OFFLINE'
+                ? '--'
+                : heartbeat.peopleCount === 0 || heartbeat.distanceM <= 0
+                ? '0 · Room clear'
+                : `${heartbeat.peopleCount || 1} · ${heartbeat.distanceM.toFixed(2)}m (${
+                    heartbeat.azimuthDeg === 180 ? 'Backside' : 'Front'
+                  })`}
             </span>
           </div>
           <div className="metric-cell">
-            <span className="readout-k">Respiration</span>
+            <span className="readout-k">Breathing rate</span>
             <span className="metric-val teal" style={{ fontSize: 17 }}>
-              {heartbeat.bpm ? `${heartbeat.bpm.toFixed(0)} BPM` : 'Monitoring'}
+              {heartbeat.bpm ? `${heartbeat.bpm.toFixed(0)} BPM` : 'Tracking'}
             </span>
           </div>
         </section>
 
-        <div className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel" style={{ marginBottom: 16 }}>
           <div className="panel-head">
             <span className="panel-title">Speak back to Amma&apos;s room speaker</span>
             <span className="panel-meta">
@@ -210,7 +221,7 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
             {QUICK_REASSURANCES.map((q, idx) => (
               <button
                 type="button"
@@ -228,26 +239,49 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
               e.preventDefault();
               sendReassurance(customMsg, sourceLang);
             }}
-            style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(170px, auto) 1fr auto',
+              gap: 12,
+              alignItems: 'end',
+            }}
           >
-            <select
-              value={sourceLang}
-              onChange={(e) => setSourceLang(e.target.value as 'en-IN' | 'ml-IN' | 'hi-IN')}
+            <div className="field-group">
+              <label htmlFor="cg-source-lang" className="field-label">
+                Input language
+              </label>
+              <select
+                id="cg-source-lang"
+                value={sourceLang}
+                onChange={(e) => setSourceLang(e.target.value as 'en-IN' | 'ml-IN' | 'hi-IN')}
+                style={{ minHeight: 42 }}
+              >
+                <option value="en-IN">English → Malayalam</option>
+                <option value="hi-IN">Hindi → Malayalam</option>
+                <option value="ml-IN">Malayalam direct</option>
+              </select>
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="cg-room-msg" className="field-label">
+                Message to room speaker
+              </label>
+              <input
+                id="cg-room-msg"
+                type="text"
+                className="cg-input"
+                placeholder="Hold on Amma, I am calling next door..."
+                value={customMsg}
+                onChange={(e) => setCustomMsg(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn-arm"
+              disabled={sending || !customMsg.trim()}
+              style={{ minHeight: 42 }}
             >
-              <option value="en-IN">English → Malayalam</option>
-              <option value="hi-IN">Hindi → Malayalam</option>
-              <option value="ml-IN">Malayalam direct</option>
-            </select>
-
-            <input
-              type="text"
-              className="cg-input"
-              placeholder="Type message to speak aloud in Amma's room..."
-              value={customMsg}
-              onChange={(e) => setCustomMsg(e.target.value)}
-            />
-
-            <button type="submit" className="btn-arm" disabled={sending || !customMsg.trim()}>
               {sending ? 'Speaking...' : 'Speak in room'}
             </button>
           </form>
@@ -256,10 +290,10 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
             <div
               className="ml"
               style={{
-                marginTop: 10,
+                marginTop: 12,
                 fontSize: 13,
-                color: 'var(--green-bright)',
-                fontWeight: 600,
+                color: 'var(--accent)',
+                fontWeight: 500,
               }}
             >
               Spoken aloud in room: &ldquo;{lastSpokenMl}&rdquo;
@@ -274,11 +308,20 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
           </div>
 
           {incidents.length === 0 ? (
-            <div
-              className="mono"
-              style={{ color: 'var(--muted-on-dark)', fontSize: 12, padding: '8px 2px' }}
-            >
-              Quiet baseline — false alarms verified safe in Malayalam do not wake you.
+            <div className="empty-state-box">
+              <p>
+                Quiet baseline — false alarms verified safe in Malayalam stay local and do not wake
+                you.
+              </p>
+              <button
+                type="button"
+                disabled={sending}
+                onClick={() =>
+                  sendReassurance(QUICK_REASSURANCES[0].text, QUICK_REASSURANCES[0].lang)
+                }
+              >
+                Send test room reassurance
+              </button>
             </div>
           ) : (
             incidents.map((inc) => (
@@ -292,11 +335,16 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                   }}
                 >
                   <span className={`badge ${inc.classification}`}>
+                    <span
+                      className={`led ${
+                        inc.classification === 'SAFE' ? 'on-teal' : 'on-red'
+                      }`}
+                    />
                     {inc.classification === 'SAFE'
                       ? 'Safe · Auto-dismissed'
                       : inc.classification}
                   </span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--content-muted)' }}>
                     {new Date(inc.timestampIso).toLocaleTimeString()} ·{' '}
                     {inc.distanceMeters.toFixed(2)}m
                     {typeof inc.azimuthDeg === 'number'
@@ -310,11 +358,14 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                     <img
                       src={inc.snapshotDataUrl}
                       alt="Anonymized Sonic Ironbow silhouette"
+                      width={112}
+                      height={63}
                       style={{
                         width: 112,
                         height: 63,
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: 8,
+                        aspectRatio: '16 / 9',
+                        border: '1px solid var(--line-default)',
+                        borderRadius: 6,
                         flexShrink: 0,
                       }}
                     />
@@ -323,8 +374,8 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                     <div
                       style={{
                         fontSize: 13.5,
-                        fontWeight: 600,
-                        color: 'var(--white)',
+                        fontWeight: 500,
+                        color: 'var(--content-primary)',
                         marginBottom: 4,
                       }}
                     >
@@ -333,9 +384,12 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                     {inc.transcriptMl && (
                       <div
                         className="mono"
-                        style={{ fontSize: 11.5, color: 'var(--muted-on-dark)' }}
+                        style={{ fontSize: 11.5, color: 'var(--content-secondary)' }}
                       >
-                        <span className="ml" style={{ color: 'var(--white)', fontWeight: 600 }}>
+                        <span
+                          className="ml"
+                          style={{ color: 'var(--content-primary)', fontWeight: 500 }}
+                        >
                           &ldquo;{inc.transcriptMl}&rdquo;
                         </span>{' '}
                         → &ldquo;{inc.transcriptEn}&rdquo;

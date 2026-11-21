@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KaavalSonarEngine } from '../audio/sonarEngine';
 import type { DetectedPerson, RadarFrame, SatelliteTelemetry, SatelliteZone } from '../types';
-import { KaavalNavbarBrand } from './BrandAndIcons';
 
 interface Props {
   onBackToConsole?: () => void;
@@ -338,10 +337,14 @@ export const SatelliteNodeView: React.FC<Props> = ({ onBackToConsole }) => {
 
   return (
     <div>
-      <header className="gx-nav-wrap">
-        <nav className="gx-nav" style={{ maxWidth: 760 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-            <KaavalNavbarBrand onClick={onBackToConsole} />
+      <div className="console-command-band">
+        <div className="console-command-inner">
+          <div className="console-command-title">
+            <h1>POCO M2 Pro satellite node</h1>
+            <span>Orthogonal 17.60–18.42 kHz backside blind-spot sensor</span>
+          </div>
+
+          <div className="console-command-controls">
             <span className="status-inline">
               <span className={`led ${wsConnected ? 'on-teal' : 'on-red'}`} />
               <span>{wsConnected ? 'Hub linked' : 'Connecting'}</span>
@@ -358,16 +361,11 @@ export const SatelliteNodeView: React.FC<Props> = ({ onBackToConsole }) => {
                 </span>
               </span>
             )}
-          </div>
-          {onBackToConsole && <button type="button" onClick={onBackToConsole}>Laptop console</button>}
-        </nav>
-      </header>
-
-      <div className="console-command-band">
-        <div className="console-command-inner" style={{ maxWidth: 760 }}>
-          <div className="console-command-title">
-            <h1>POCO M2 Pro satellite node</h1>
-            <span>Orthogonal 17.60–18.42 kHz backside blind-spot sensor</span>
+            {onBackToConsole && (
+              <button type="button" onClick={onBackToConsole}>
+                Open laptop console
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -377,27 +375,29 @@ export const SatelliteNodeView: React.FC<Props> = ({ onBackToConsole }) => {
           <div
             className="cg-alert-banner"
             style={{
-              background: 'rgba(255, 226, 77, 0.14)',
-              borderColor: 'var(--yellow)',
+              background: 'var(--surface-subtle)',
+              borderColor: 'var(--line-strong)',
             }}
           >
             <div
               className="mono"
-              style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)', marginBottom: 6 }}
+              style={{ fontSize: 12, fontWeight: 600, color: 'var(--status-warn)', marginBottom: 6 }}
             >
               Android Chrome requires HTTPS for ultrasonic mic access
             </div>
-            <p style={{ fontSize: 14, color: 'var(--text-on-dark)', marginBottom: 12 }}>
+            <p style={{ fontSize: 13.5, color: 'var(--content-secondary)', marginBottom: 12 }}>
               Tap below to switch to Kaaval&apos;s local encrypted gateway (accept the self-signed
-              LAN certificate once via <strong>Advanced → Proceed</strong>).
+              LAN certificate once via <strong style={{ color: 'var(--content-primary)' }}>Advanced → Proceed</strong>).
             </p>
             <a
               href={secureRedirectUrl}
-              className="gx-cta-btn"
+              className="ui-btn-primary"
               style={{
                 display: 'inline-flex',
-                padding: '9px 18px',
-                borderRadius: 999,
+                alignItems: 'center',
+                minHeight: 42,
+                padding: '0 16px',
+                borderRadius: 10,
                 textDecoration: 'none',
               }}
             >
@@ -412,22 +412,22 @@ export const SatelliteNodeView: React.FC<Props> = ({ onBackToConsole }) => {
           </div>
         )}
 
-        <div className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel" style={{ marginBottom: 16 }}>
           <div className="panel-head">
             <span className="panel-title">Physical placement &amp; blind-spot zone</span>
             <span className="panel-meta">Bottom mono speaker + USB-C mic</span>
           </div>
-          <p style={{ fontSize: 13.5, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--content-secondary)', marginBottom: 14 }}>
             1. Unplug Bluetooth audio and set POCO media volume to{' '}
-            <strong style={{ color: 'var(--white)' }}>70–85%</strong>.<br />
+            <strong style={{ color: 'var(--content-primary)' }}>70–85%</strong>.<br />
             2. Lay the phone flat behind your laptop with the{' '}
-            <strong style={{ color: 'var(--white)' }}>
+            <strong style={{ color: 'var(--content-primary)' }}>
               bottom USB-C / speaker edge pointing into the blind zone
             </strong>
             .
           </p>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
             <label className="ctrl-inline">
               Blind-spot zone:
               <select value={zone} onChange={(e) => setZone(e.target.value as SatelliteZone)}>

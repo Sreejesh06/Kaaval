@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getFilteredSatelliteTargets } from '../audio/fusion';
 import type { DetectedPerson, GuardMode, RadarFrame, SatelliteTelemetry } from '../types';
 
 interface Props {
@@ -202,25 +203,30 @@ export const SonicIronbowView: React.FC<Props> = ({
         state.gridAz = rf.spatialAzimuthBins;
       }
 
+      const dedupedSatTargets = getFilteredSatelliteTargets(
+        armedRef.current ? state.targets : [],
+        activeSat,
+        armedRef.current
+      );
+
       if (nowMs - lastHudMs > 180) {
         lastHudMs = nowMs;
         const frontTargets = armedRef.current ? state.targets : [];
-        const satTargets = activeSat ? activeSat.targets : [];
-        const cnt = frontTargets.length + satTargets.length;
+        const cnt = frontTargets.length + dedupedSatTargets.length;
         const parts: string[] = [];
         frontTargets.forEach((t, idx) => {
           parts.push(
-            `F${idx + 1} ${t.distanceMeters.toFixed(2)}m (${t.azimuthDeg >= 0 ? '+' : ''}${t.azimuthDeg.toFixed(0)}°)`
+            `${frontTargets.length > 1 ? `P${idx + 1} ` : ''}${t.distanceMeters.toFixed(2)}m (${t.azimuthDeg >= 0 ? '+' : ''}${t.azimuthDeg.toFixed(0)}°)`
           );
         });
-        satTargets.forEach((t, idx) => {
-          parts.push(`B${idx + 1} [${activeSat?.zone}] ${t.distanceMeters.toFixed(2)}m`);
+        dedupedSatTargets.forEach((t) => {
+          parts.push(`Backside ${t.distanceMeters.toFixed(2)}m`);
         });
         const summary =
           cnt === 0
             ? activeSat
-              ? '0 DETECTED (360° DUAL-NODE CLEAR)'
-              : '0 DETECTED (EMPTY CABIN)'
+              ? '360° room clear'
+              : 'Room empty'
             : parts.join(' · ');
         setHeaderInfo({ count: cnt, summary });
       }
@@ -246,10 +252,10 @@ export const SonicIronbowView: React.FC<Props> = ({
       const horizonY = Math.floor(GRID_H * 0.36);
       const breathMod = Math.max(-0.06, Math.min(0.06, state.dispMm * 0.016));
 
-      // Combine Front Laptop targets + POCO Satellite targets for unified Ironbow projection
+      // Combine Front Laptop targets + de-duplicated POCO Satellite targets
       const combinedTargets: Array<{ t: DetectedPerson; isSat: boolean }> = [
         ...(armed ? state.targets.map((t) => ({ t, isSat: false })) : []),
-        ...(activeSat ? activeSat.targets.map((t) => ({ t, isSat: true })) : []),
+        ...dedupedSatTargets.map((t) => ({ t, isSat: true })),
       ];
 
       // Precompute screen projections for all detected people (sorted back-to-front)
@@ -389,30 +395,36 @@ export const SonicIronbowView: React.FC<Props> = ({
         const activeBpm = pr.isSat ? activeSat?.respirationBpm : state.bpm;
         const bpmSuffix = activeBpm ? ` · ${activeBpm.toFixed(0)} BPM` : '';
         const label = pr.isSat
-          ? `B${rank} [${pr.person.zone || 'BACK'} · POCO] · ${pr.person.distanceMeters.toFixed(2)}m${bpmSuffix}`
-          : `F${rank} · ${pr.person.distanceMeters.toFixed(2)}m · ${
+          ? `BACKSIDE · ${pr.person.distanceMeters.toFixed(2)}m${bpmSuffix}`
+          : `${projectedPeople.length > 1 ? `P${rank} · ` : ''}${pr.person.distanceMeters.toFixed(2)}m · ${
               pr.person.azimuthDeg >= 0 ? '+' : ''
             }${pr.person.azimuthDeg.toFixed(0)}°${bpmSuffix}`;
         drawCallout(ctx, dispCx, Math.max(28, dispFootY - boxH - 8), label, pr.isSat);
       });
 
       if (activeSat || armed) {
-        drawWholeRoomMiniRadar(ctx, armed ? state.targets : [], activeSat, armed);
+        drawWholeRoomMiniRadar(
+          ctx,
+          armed ? state.targets : [],
+          activeSat,
+          dedupedSatTargets,
+          armed
+        );
       }
 
       if (!armed && !activeSat) {
-        ctx.fillStyle = 'rgba(14, 11, 22, 0.86)';
+        ctx.fillStyle = 'rgba(10, 11, 20, 0.88)';
         ctx.beginPath();
-        ctx.roundRect(W * 0.5 - 220, H * 0.5 - 21, 440, 42, 21);
+        ctx.roundRect(W * 0.5 - 220, H * 0.5 - 21, 440, 42, 10);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(41, 88, 212, 0.78)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 1;
         ctx.stroke();
-        ctx.fillStyle = '#ffe24d';
+        ctx.fillStyle = '#a7ef77';
         ctx.beginPath();
-        ctx.arc(W * 0.5 - 196, H * 0.5, 4.5, 0, Math.PI * 2);
+        ctx.arc(W * 0.5 - 196, H * 0.5, 4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#f5f3fa';
+        ctx.fillStyle = '#f5f5f7';
         ctx.font = '500 12.5px "DM Mono", monospace';
         ctx.fillText('Click anywhere to arm 20 kHz multi-person sonar', W * 0.5 - 182, H * 0.5 + 4);
       }
@@ -458,10 +470,12 @@ export const SonicIronbowView: React.FC<Props> = ({
 
       <div className="primitives-bar">
         <span className={`prim-pill ${headerInfo.count > 0 ? 'prim-active' : 'prim-dim'}`}>
-          {headerInfo.count > 0 ? `${headerInfo.count} human target(s) locked` : 'Cabin empty'}
+          {headerInfo.count > 0
+            ? `${headerInfo.count} ${headerInfo.count === 1 ? 'person' : 'people'} tracked`
+            : 'Room empty'}
         </span>
         <span className="honesty-tag">
-          0.6s micro-Doppler + OS-CFAR · Detects seated &amp; moving people
+          Hardware camera LED: OFF · Pure 17.6–20.3 kHz acoustic echo map
         </span>
       </div>
     </div>
@@ -551,6 +565,7 @@ function drawWholeRoomMiniRadar(
   ctx: CanvasRenderingContext2D,
   frontTargets: DetectedPerson[],
   sat: SatelliteTelemetry | null,
+  satTargets: DetectedPerson[],
   laptopArmed: boolean
 ) {
   const x0 = 14;
@@ -628,7 +643,7 @@ function drawWholeRoomMiniRadar(
   });
 
   if (sat) {
-    sat.targets.forEach((t) => {
+    satTargets.forEach((t) => {
       const px = cx + (t.x / 3.0) * maxR;
       const py = cy - (t.z / 3.0) * maxR;
       ctx.fillStyle = '#3ed598';

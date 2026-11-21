@@ -41,6 +41,7 @@ export const BenchmarkPanel: React.FC<Props> = ({
 }) => {
   const [selectedClass, setSelectedClass] = useState<GroundTruthClass>('SEATED_BREATHING');
   const [recordingLeft, setRecordingLeft] = useState<number | null>(null);
+  const [confirmingReset, setConfirmingReset] = useState<boolean>(false);
 
   const runFiveSecondTrial = () => {
     if (!sonarArmed) {
@@ -130,6 +131,7 @@ export const BenchmarkPanel: React.FC<Props> = ({
   const clearAll = async () => {
     const res = await fetch('/api/benchmark', { method: 'DELETE' });
     onSummaryUpdated(await res.json());
+    setConfirmingReset(false);
   };
 
   const exportJson = () => {
@@ -149,13 +151,29 @@ export const BenchmarkPanel: React.FC<Props> = ({
         <span className="panel-title">
           4×4 confusion matrix · {summary.trials.length} recorded trials
         </span>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           <button type="button" onClick={exportJson} disabled={summary.trials.length === 0}>
             Export JSON
           </button>
-          <button type="button" onClick={clearAll} disabled={summary.trials.length === 0}>
-            Reset trials
-          </button>
+
+          {!confirmingReset ? (
+            <button
+              type="button"
+              onClick={() => setConfirmingReset(true)}
+              disabled={summary.trials.length === 0}
+            >
+              Reset trials
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn-danger" onClick={clearAll}>
+                Confirm delete ({summary.trials.length})
+              </button>
+              <button type="button" onClick={() => setConfirmingReset(false)}>
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -167,14 +185,14 @@ export const BenchmarkPanel: React.FC<Props> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 14px',
-          background: 'var(--obsidian)',
-          border: '1px solid var(--night-border-strong)',
-          borderRadius: 14,
+          background: 'var(--surface-subtle)',
+          border: '1px solid var(--line-default)',
+          borderRadius: 8,
           marginBottom: 12,
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 11.5, color: 'var(--muted-on-dark)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <span className="mono" style={{ fontSize: 11.5, color: 'var(--content-muted)' }}>
             Ground truth:
           </span>
           {CLASSES.map((c) => (
@@ -205,9 +223,9 @@ export const BenchmarkPanel: React.FC<Props> = ({
 
       <div
         className="mono"
-        style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 14 }}
+        style={{ fontSize: 12, color: 'var(--content-secondary)', marginBottom: 14 }}
       >
-        Protocol for <strong style={{ color: 'var(--white)' }}>{activeSpec.label}</strong>:{' '}
+        Protocol for <strong style={{ color: 'var(--content-primary)' }}>{activeSpec.label}</strong>:{' '}
         {activeSpec.protocol}
       </div>
 
@@ -241,7 +259,7 @@ export const BenchmarkPanel: React.FC<Props> = ({
         <tbody>
           {CLASSES.map((row) => (
             <tr key={row.id}>
-              <th style={{ textAlign: 'left', color: 'var(--white)' }}>{row.label}</th>
+              <th style={{ textAlign: 'left', color: 'var(--content-primary)' }}>{row.label}</th>
               {CLASSES.map((col) => {
                 const count = summary.matrix?.[row.id]?.[col.id] ?? 0;
                 const cls =

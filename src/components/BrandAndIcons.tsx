@@ -257,10 +257,10 @@ export const IconPhonePair: React.FC<{ size?: number }> = ({ size = 16 }) => (
 );
 
 export const IconSliders: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" aria-hidden="true">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
     <path d="M4 6h16M4 12h16M4 18h16" />
-    <circle cx="9" cy="6" r="2.2" fill="#FFE24D" />
-    <circle cx="15" cy="12" r="2.2" fill="#3ED598" />
-    <circle cx="10" cy="18" r="2.2" fill="#B9A2FF" />
+    <circle cx="9" cy="6" r="2.2" fill="var(--page-default)" stroke="currentColor" />
+    <circle cx="15" cy="12" r="2.2" fill="var(--page-default)" stroke="currentColor" />
+    <circle cx="10" cy="18" r="2.2" fill="var(--page-default)" stroke="currentColor" />
   </svg>
 );

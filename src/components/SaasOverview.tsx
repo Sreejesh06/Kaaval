@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  HeroCloudsDivider,
-  IconPhonePair,
-  IconSonarWave,
-  KaavalHeroWordmark,
-  KaavalLogoMark,
-  SparkleStarSvg,
-} from './BrandAndIcons';
+import { IconPhonePair, IconSonarWave } from './BrandAndIcons';
 
 interface Props {
   sonarArmed: boolean;
@@ -16,16 +9,6 @@ interface Props {
   onOpenCaregiver: () => void;
   onOpenBenchmark: () => void;
 }
-
-const TICKER_ITEMS = [
-  '0 PX OPTICAL CAMERA',
-  '17.60–20.25 KHZ STEREO FDMA SONAR',
-  '-115.1 DB SPEECH FIREWALL (<17.5 KHZ ZEROED)',
-  '0.33 CM FMCW RANGE PRECISION',
-  'OS-CFAR MULTI-PERSON TRACKING',
-  'BULBUL V3 + SAARAS V4 + SARVAM-105B',
-  '2-WAY MALAYALAM CAREGIVER VOICE BRIDGE',
-];
 
 export const SaasOverview: React.FC<Props> = ({
   sonarArmed,
@@ -37,307 +20,256 @@ export const SaasOverview: React.FC<Props> = ({
 }) => {
   return (
     <div>
-      {/* 1. Electric Cobalt Hero (#2958D4) transitioning into Deep Plum-Night (#21182D) */}
-      <section className="gx-hero">
-        <div
-          className="gx-star-float"
-          style={{ top: '20%', left: '9%', animationDelay: '0.4s' }}
-        >
-          <SparkleStarSvg fill="#FFFFFF" size={22} />
-        </div>
-        <div
-          className="gx-star-float"
-          style={{ top: '26%', right: '10%', animationDelay: '1.8s' }}
-        >
-          <SparkleStarSvg fill="#FFE24D" size={26} />
-        </div>
-        <div
-          className="gx-star-float"
-          style={{ bottom: '32%', left: '15%', animationDelay: '2.7s' }}
-        >
-          <SparkleStarSvg fill="#1CE494" size={18} />
-        </div>
-
-        <div className="gx-hero-inner">
-          <div className="gx-eyebrow-pill">
-            <span className={`led ${sonarArmed ? 'on-teal' : 'on-amber'}`} />
-            <span>Zero-camera elder safety · Alappuzha houseboat build</span>
+      {/* 1. Quiet Editorial Engineering Hero (ibelick/ui-skills DESIGN.md) */}
+      <section className="ui-hero">
+        <div className="ui-container">
+          <div className="ui-kicker">
+            <span className={`led ${sonarArmed ? 'on-teal' : ''}`} />
+            <span>
+              {sonarArmed ? '20 kHz sonar active' : 'Zero-camera ultrasonic elder safety'} ·
+              Alappuzha houseboat build
+            </span>
           </div>
-
-          <KaavalHeroWordmark />
 
           <h1>
             Check on parents living alone in Kerala, without putting a camera in their bedroom.
           </h1>
 
-          <p className="gx-hero-sub">
-            Kaaval turns a bedside laptop or tablet into an inaudible 17.6–20.2 kHz ultrasonic
-            room sensor. It tracks presence, breathing, and falls with the camera strictly off—and
-            only opens a spoken Malayalam check-in when a real fall + stillness occurs.
+          <p className="ui-hero-lead">
+            Kaaval turns a bedside laptop or tablet into an inaudible 17.60–20.25 kHz stereo
+            ultrasonic sensor. It tracks room occupancy, chest respiration, and sudden falls with
+            the optical camera strictly off—opening a spoken Malayalam check-in only after a
+            verified fall + 4.0s stillness.
           </p>
 
-          <div className="gx-hero-ctas">
+          <div className="ui-hero-actions">
             <button
               type="button"
-              className="gx-cta-btn gx-cta-big"
+              className="ui-btn-primary ui-btn-lg"
               onClick={sonarArmed ? onOpenConsole : onArmAndOpenConsole}
             >
-              <IconSonarWave size={18} />
+              <IconSonarWave size={16} />
               {sonarArmed ? 'Open live room console' : 'Arm sonar & open console'}
             </button>
 
             <button
               type="button"
-              className="gx-cta-sec"
+              className="ui-btn-lg"
               onClick={onOpenCaregiver}
             >
-              <IconPhonePair size={18} />
+              <IconPhonePair size={16} />
               Open caregiver phone app
             </button>
+
+            <button
+              type="button"
+              className="ui-btn-lg"
+              onClick={onOpenBenchmark}
+            >
+              4×4 benchmark ({benchmarkTrialsCount})
+            </button>
           </div>
-        </div>
 
-        <HeroCloudsDivider fill="#21182D" />
-      </section>
-
-      {/* 2. Signature -1.6deg Rotated Acid-Lime Ticker */}
-      <div className="gx-ticker" aria-label="Verified acoustic specifications">
-        <div className="gx-ticker-track">
-          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, idx) => (
-            <span key={idx}>★ {item}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. Deep Plum-Night (#21182D) Proof Deck — Exact GrowthX Offcampus `_what_fa47f19` Contrast! */}
-      <section className="gx-section gx-night-band">
-        <div className="gx-container">
-          <h2 className="gx-sec-title">Verified physics, not black-box claims.</h2>
-          <p className="gx-sec-lead">
-            Every metric below is tested continuously in our deterministic AudioWorklet benchmark
-            suite across 48 kHz stereo channels—zero external hardware required.
-          </p>
-
-          <div className="gx-deck">
-            <article
-              className="gx-pcard"
-              style={{ background: 'var(--yellow)', transform: 'rotate(-1.4deg)' }}
-            >
-              <div className="gx-big-num">0 px</div>
-              <h3>Hardware camera off</h3>
-              <p>
-                Uses WebAudio speakers and mic above 17.6 kHz only. The MacBook green camera LED
-                never turns on—preserving bedroom and bathroom-adjacent dignity.
+          {/* 4-Card Verified Specification Grid (Identifier -> Description -> Source) */}
+          <div className="ui-spec-strip">
+            <article className="ui-spec-card">
+              <div className="ui-spec-val">0 px</div>
+              <div className="ui-spec-title">Hardware camera strictly off</div>
+              <p className="ui-spec-desc">
+                Uses WebAudio stereo speakers and microphone above 17.6 kHz only. The MacBook
+                camera indicator LED never turns on.
               </p>
+              <div className="ui-spec-source">AudioWorklet · zero video API</div>
             </article>
 
-            <article
-              className="gx-pcard"
-              style={{ background: 'var(--green)', transform: 'rotate(1.1deg)' }}
-            >
-              <div className="gx-big-num">-115 dB</div>
-              <h3>Audio-thread speech firewall</h3>
-              <p>
-                Every sample below 17.5 kHz is mathematically zeroed inside the DSP thread before
-                leaving the worklet. Everyday Malayalam conversation is never recorded.
+            <article className="ui-spec-card">
+              <div className="ui-spec-val">-115.1 dB</div>
+              <div className="ui-spec-title">Audio-thread speech firewall</div>
+              <p className="ui-spec-desc">
+                All frequencies below 17.5 kHz are zeroed inside the DSP thread before leaving the
+                worklet. Everyday speech is never recorded.
               </p>
+              <div className="ui-spec-source">verify-physics.mjs · Suite 02</div>
             </article>
 
-            <article
-              className="gx-pcard"
-              style={{ background: 'var(--lilac)', transform: 'rotate(-0.9deg)' }}
-            >
-              <div className="gx-big-num">0.3 cm</div>
-              <h3>Stereo FDMA range &amp; vitals</h3>
-              <p>
-                Orthogonal left/right chirps + OS-CFAR resolve 1–3 people across 0.32–3.0m and
-                track sub-millimeter chest respiration (14.8 / 15.0 BPM verified).
+            <article className="ui-spec-card">
+              <div className="ui-spec-val">0.33 cm</div>
+              <div className="ui-spec-title">Stereo FDMA range &amp; vitals</div>
+              <p className="ui-spec-desc">
+                Hann-windowed FMCW pulse compression + OS-CFAR resolve 1–3 people (0.32–3.0m) and
+                demodulate chest respiration BPM.
               </p>
+              <div className="ui-spec-source">verify-physics.mjs · Suites 01, 03, 06</div>
             </article>
 
-            <article
-              className="gx-pcard"
-              style={{ background: 'var(--pink)', transform: 'rotate(1.3deg)' }}
-            >
-              <div className="gx-big-num">4 models</div>
-              <h3>Malayalam triage &amp; voice bridge</h3>
-              <p>
-                Bulbul v3 checks on Amma in Malayalam, Saaras v4 transcribes, Sarvam-105B filters
-                false alarms, and NRI family reply in English or Malayalam to her room speaker.
+            <article className="ui-spec-card">
+              <div className="ui-spec-val">4 models</div>
+              <div className="ui-spec-title">Consent-gated Malayalam triage</div>
+              <p className="ui-spec-desc">
+                Bulbul v3 prompts in Malayalam, Saaras v4 transcribes, Sarvam-105B filters false
+                alarms, and family reply to the room speaker.
               </p>
+              <div className="ui-spec-source">server/sarvam.ts · 0-credit lock ready</div>
             </article>
           </div>
         </div>
       </section>
 
-      {/* 4. Electric Cobalt (#2958D4) Problem vs. Mechanism Split (`_about_fa47f19` + `_room_fa47f19`) */}
-      <section className="gx-section gx-blue-band">
-        <div className="gx-container gx-about-grid">
+      {/* 2. Problem Context & Acoustic Mechanism Split */}
+      <section className="ui-section">
+        <div className="ui-container ui-split-grid">
           <div>
-            <span className="gx-tag-pill">Why Kaaval exists</span>
-            <h2
-              className="gx-sec-title"
-              style={{ color: 'var(--cream)', marginTop: 14 }}
-            >
-              Kerala&apos;s elder-care gap cannot be solved with bedroom surveillance.
-            </h2>
-            <p style={{ fontSize: 16.5, color: '#e6ecff', marginTop: 12, maxWidth: '48ch' }}>
-              Kerala has India&apos;s highest elderly share (16.5% today, projected 22.8% by 2036,
-              UNFPA) while 2.2 million Keralites work outside the state or abroad (KMS).
-            </p>
-            <p className="gx-strike-line">
-              Not a <s>bedroom CCTV camera</s>, an <s>unworn wrist pendant</s>, or{' '}
-              <s>3 a.m. false-alarm spam</s>.
+            <div className="ui-sec-head" style={{ marginBottom: 16 }}>
+              <h2>Designed for Kerala&apos;s elder-care reality</h2>
+              <p>
+                Kerala has India&apos;s highest elderly share (16.5% today, projected 22.8% by
+                2036, UNFPA) while 2.2 million Keralites work abroad or out of state (Kerala
+                Migration Survey).
+              </p>
+            </div>
+
+            <p style={{ fontSize: 14, color: 'var(--content-secondary)' }}>
+              Parents living alone refuse indoor bedroom cameras, and wearable fall pendants are
+              frequently left on bedside tables at night. Kaaval runs on an existing bedside
+              laptop or tablet browser with zero extra hardware.
             </p>
 
-            <ul className="gx-glass-list">
-              <li>Runs on any bedside laptop or tablet browser with zero extra hardware</li>
-              <li>Separates normal room walking from sudden impact + 4s stillness</li>
-              <li>Speaks natural Malayalam before ever waking family abroad</li>
+            <ul className="ui-bullet-list">
+              <li>Tracks presence and breathing locally without cloud video or audio streaming</li>
+              <li>Verifies anomalies in spoken Malayalam before waking family abroad</li>
+              <li>Bridges English, Hindi, or Malayalam replies back to Amma&apos;s room speaker</li>
             </ul>
           </div>
 
-          <div className="gx-beats">
-            <div className="gx-beat" style={{ background: 'var(--yellow)' }}>
-              <h3>Detects even if already seated at boot</h3>
+          <div className="ui-feature-stack">
+            <article className="ui-feature-item">
+              <h3>Detects people already seated at boot</h3>
               <p>
-                A 0.60-second (14-frame) complex IQ delay-line canceller + Hann-windowed OS-CFAR
-                isolates human micro-sway and chest breathing from 4.5× louder wooden cabin walls.
+                A 0.60-second (14-frame) complex IQ delay-line canceller paired with 45th-percentile
+                OS-CFAR isolates involuntary posture sway and chest breathing while rejecting 4.5×
+                louder static wooden walls.
               </p>
-            </div>
+            </article>
 
-            <div className="gx-beat" style={{ background: 'var(--green)' }}>
-              <h3>Filters false alarms in spoken Malayalam</h3>
+            <article className="ui-feature-item">
+              <h3>Separates walking past from real falls</h3>
               <p>
-                If Amma drops a book and replies &ldquo;കുഴപ്പമില്ല മോനേ&rdquo;, Sarvam-105B marks
-                the event safe locally and immediately re-locks the &lt;17.5 kHz speech firewall.
+                High motion impulse opens a 4.0-second post-impact watch window. Continuous
+                footsteps cancel silently; sustained post-spike stillness triggers a gentle
+                Malayalam voice check-in.
               </p>
-            </div>
+            </article>
 
-            <div className="gx-beat" style={{ background: 'var(--pink)' }}>
-              <h3>Two-way reassurance on any hotspot</h3>
+            <article className="ui-feature-item">
+              <h3>Optional 3-band FDMA blind-spot satellite</h3>
               <p>
-                If Amma needs help or stays silent, caregivers get an anonymized Sonic Ironbow
-                posture card on their phone and speak back into her room in natural Malayalam.
+                Pair an Android phone on `/satellite` (17.60–18.42 kHz) behind the laptop while
+                the host shifts automatically to 18.58–20.34 kHz—covering front and backside zones
+                with zero cross-node ghosting.
               </p>
-            </div>
+            </article>
           </div>
         </div>
       </section>
 
-      {/* 5. Cool Porcelain (#F4F2F8) 5-Step Pipeline + Dark SaaS Terminal Verification Card */}
-      <section className="gx-section gx-porcelain-band">
-        <div className="gx-container">
-          <h2 className="gx-sec-title">How a fall check-in works end to end</h2>
-          <p className="gx-sec-lead">
-            Designed so calm nights stay 100% private and local, while genuine emergencies reach
-            family in seconds with full context.
-          </p>
+      {/* 3. End-to-End Pipeline & Consent Architecture */}
+      <section className="ui-section">
+        <div className="ui-container">
+          <div className="ui-sec-head">
+            <h2>End-to-end fall verification flow</h2>
+            <p>
+              Calm nights stay 100% local in the browser; cloud models run strictly inside the
+              9.5-second post-anomaly consent window.
+            </p>
+          </div>
 
-          <ol className="gx-steps">
-            <li className="gx-step">
-              <div className="gx-step-num">1</div>
-              <h3>Transmit stereo chirps</h3>
+          <ol className="ui-steps-grid">
+            <li className="ui-step-card">
+              <span className="ui-step-idx">01 · SONAR</span>
+              <h3>Sweep stereo chirps</h3>
               <p>
-                Left (17.6–18.85 kHz) and right (19.0–20.25 kHz) speakers sweep 42.6 ms chirps
-                while zeroing all speech frequencies below 17.5 kHz.
+                Left (17.6–18.85 kHz) and right (19.0–20.25 kHz) channels sweep 42.6 ms chirps
+                while zeroing all audio below 17.5 kHz.
               </p>
             </li>
 
-            <li className="gx-step">
-              <div className="gx-step-num">2</div>
-              <h3>Verify 4s stillness</h3>
+            <li className="ui-step-card">
+              <span className="ui-step-idx">02 · KINEMATICS</span>
+              <h3>Verify 4.0s stillness</h3>
               <p>
-                When motion impulse crosses threshold, Kaaval watches for 4.0 seconds of
-                post-impact stillness so dropping a book or walking past never nags the room.
+                Motion spikes trigger a 4.0-second recovery timer so dropping an object or walking
+                across the room never nags the resident.
               </p>
             </li>
 
-            <li className="gx-step">
-              <div className="gx-step-num">3</div>
-              <h3>Ask gently in Malayalam</h3>
+            <li className="ui-step-card">
+              <span className="ui-step-idx">03 · PROMPT</span>
+              <h3>Check in gently</h3>
               <p>
-                Ultrasound pauses cleanly and Bulbul v3 plays a natural Malayalam check-in asking
-                Amma if she is alright, opening a 9.5-second consent window.
+                Ultrasound pauses cleanly and Bulbul v3 plays a natural Malayalam prompt asking
+                Amma if she needs help.
               </p>
             </li>
 
-            <li className="gx-step">
-              <div className="gx-step-num">4</div>
-              <h3>Transcribe &amp; triage</h3>
+            <li className="ui-step-card">
+              <span className="ui-step-idx">04 · TRIAGE</span>
+              <h3>Classify response</h3>
               <p>
-                Saaras v4 streams live Malayalam speech; Sarvam-105B + Translate classify SAFE vs.
-                EMERGENCY in parallel (~1.2s) and re-lock the mic firewall immediately.
+                Saaras v4 streams 16 kHz speech; Sarvam-105B + Translate classify SAFE vs.
+                EMERGENCY in parallel and re-lock the firewall.
               </p>
             </li>
 
-            <li className="gx-step">
-              <div className="gx-step-num">5</div>
+            <li className="ui-step-card">
+              <span className="ui-step-idx">05 · DISPATCH</span>
               <h3>Alert &amp; speak back</h3>
               <p>
-                SAFE replies stay local. Emergencies push a live alert to the caregiver phone view,
-                letting family type in English/Hindi/Malayalam to speak aloud in the room.
+                SAFE responses stay local. Emergencies push an anonymized Sonic Ironbow card to
+                `/caregiver` with 2-way voice reassurance.
               </p>
             </li>
           </ol>
 
-          <div className="gx-verify-card">
+          <div className="ui-arch-card">
             <div>
-              <span className="gx-tag-pill">Consent-gated Sarvam AI stack</span>
-              <h3 style={{ fontSize: 26, fontWeight: 800, marginTop: 12 }}>
-                Four Indian-language models orchestrated only after physical verification
-              </h3>
-              <p style={{ color: 'var(--muted-on-light)', marginTop: 8, fontSize: 15 }}>
-                Zero background cloud streaming. API calls fire strictly during the 9.5-second
-                post-anomaly verification window—or run in 0-credit rehearsal lock while testing.
+              <h3 style={{ fontSize: 18 }}>Sarvam AI execution path</h3>
+              <p style={{ color: 'var(--content-secondary)', marginTop: 6, fontSize: 14 }}>
+                During development and acoustic calibration, Credit Guard locks cloud calls to 0
+                using pre-cached Malayalam prompts and deterministic local triage.
               </p>
 
-              <ul className="gx-path-pills">
+              <ul className="ui-chain">
                 <li>
-                  <span>OS-CFAR Fall + Stillness</span> →
+                  <span>OS-CFAR fall + stillness</span> →
                 </li>
                 <li>
                   <span>bulbul:v3 (ml-IN)</span> →
                 </li>
                 <li>
-                  <span>saaras:v4 16kHz WS</span> →
+                  <span>saaras:v4 WS</span> →
                 </li>
                 <li>
                   <span>sarvam-105b-conversations</span> →
                 </li>
-                <li className="highlight">
-                  <span>Caregiver Phone Bridge</span>
+                <li className="is-accent">
+                  <span>/ws/hub caregiver bridge</span>
                 </li>
               </ul>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
-                <button
-                  type="button"
-                  className="btn-arm"
-                  onClick={onOpenConsole}
-                >
-                  Inspect live acoustic scopes
-                </button>
-                <button type="button" onClick={onOpenBenchmark}>
-                  Run 4×4 cabin benchmark ({benchmarkTrialsCount} trials)
-                </button>
-              </div>
             </div>
 
-            <div className="gx-fact-stack">
-              <div className="gx-fact-box">
-                <h4>What never leaves the room</h4>
-                <p style={{ fontSize: 14 }}>
-                  Optical video (0 pixels), everyday conversation (&lt;17.5 kHz zeroed in DSP), and
-                  auto-dismissed false alarms when Amma confirms she is fine.
+            <div className="ui-boundary-pair">
+              <div className="ui-boundary-box">
+                <h4>Stays local in the room</h4>
+                <p>
+                  0 optical pixels, &lt;17.5 kHz everyday speech (zeroed in DSP), and false alarms
+                  dismissed when Amma confirms she is alright.
                 </p>
               </div>
-
-              <div className="gx-fact-box cobalt">
-                <h4>What reaches the caregiver phone</h4>
-                <p style={{ fontSize: 14 }}>
-                  Room range &amp; respiration BPM, anonymized Sonic Ironbow echo silhouette,
-                  Malayalam + English clinical summary, and instant 2-way voice reassurance.
+              <div className="ui-boundary-box">
+                <h4>Sent on verified emergency</h4>
+                <p>
+                  Range &amp; respiration BPM, anonymized Sonic Ironbow echo silhouette, Malayalam
+                  + English summary, and live room speaker bridge.
                 </p>
               </div>
             </div>
@@ -345,110 +277,54 @@ export const SaasOverview: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* 6. Deep Plum-Night (#21182D) Engineering Boundaries & FAQ */}
-      <section className="gx-section gx-night-band">
-        <div className="gx-container">
-          <h2 className="gx-sec-title">Physical boundaries &amp; setup questions</h2>
-          <p className="gx-sec-lead">
-            Clear acoustic constraints so you know exactly where Kaaval excels and what hardware
-            setup it expects.
-          </p>
+      {/* 4. Physical Boundaries & Setup FAQ */}
+      <section className="ui-section">
+        <div className="ui-container">
+          <div className="ui-sec-head">
+            <h2>Physical boundaries &amp; setup</h2>
+            <p>
+              Real acoustic constraints so you know what hardware setup 18–20 kHz sonar expects.
+            </p>
+          </div>
 
-          <div className="gx-faq-grid">
+          <div className="ui-faq-grid">
             <details open>
-              <summary>Does it work if someone is already sitting still when I arm sonar?</summary>
+              <summary>Does it detect someone who is already sitting still at startup?</summary>
               <p>
-                Yes. Unlike naive background subtraction that erases seated people into static
-                clutter, Kaaval uses a 0.60-second complex IQ delay line + OS-CFAR to pick up
-                involuntary human posture micro-sway and chest breathing within 0.32–3.0 meters.
+                Yes. Static clutter subtraction alone erases a seated person, so Kaaval combines a
+                0.60-second complex IQ delay line with OS-CFAR to lock onto involuntary posture
+                micro-sway and chest respiration across 0.32–3.0 meters.
               </p>
             </details>
 
             <details open>
-              <summary>Why is the Sonic Ironbow image warm-colored without using a camera?</summary>
+              <summary>How does Sonic Ironbow render a thermal-style view with no camera?</summary>
               <p>
-                Sonic Ironbow maps real 2D ultrasonic range-azimuth echo strength and chest
-                micro-Doppler onto a scientific Ironbow palette. Your webcam stays completely
-                untouched—cover the lens with tape and watch it track you identically.
+                Sonic Ironbow maps real 2D ultrasonic range-azimuth echo energy and chest
+                micro-Doppler onto a scientific Ironbow lookup table. Cover your webcam physically
+                and verify that tracking works identically.
               </p>
             </details>
 
             <details>
-              <summary>Can I use Bluetooth AirPods or a phone speaker across closed doors?</summary>
+              <summary>Why must Bluetooth AirPods or headsets be disconnected?</summary>
               <p>
-                No—unplug Bluetooth headsets and use the laptop&apos;s built-in stereo speakers and
-                mic. Bluetooth Hands-Free Profile resamples audio to 8–16 kHz (cutting off 18 kHz
-                ultrasound), and 19 kHz sound waves reflect off closed doors rather than passing
-                through walls.
+                Bluetooth Hands-Free Profile resamples microphone audio to 8–16 kHz, filtering out
+                17.6–20.25 kHz ultrasound. Always use the laptop&apos;s built-in stereo speakers
+                and microphone at 48 kHz.
               </p>
             </details>
 
             <details>
-              <summary>How does 0-credit lock protect Sarvam API credits during setup?</summary>
+              <summary>Does ultrasound pass through closed wooden or concrete walls?</summary>
               <p>
-                While tuning sonar gain or testing cabin echoes, Credit Guard serves pre-cached
-                Bulbul v3 Malayalam prompts from disk and deterministic local triage (0 API calls).
-                Toggle to Sarvam Live in the navbar whenever you want full live cloud inference.
+                No. High-frequency 19 kHz acoustic waves reflect off solid doors and walls, making
+                Kaaval strictly a single-room sensor with hard physical privacy boundaries.
               </p>
             </details>
           </div>
         </div>
       </section>
-
-      {/* 7. Electric Cobalt SaaS Footer */}
-      <footer className="gx-footer">
-        <div
-          className="gx-container"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            textAlign: 'left',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <KaavalLogoMark size={36} />
-            <div>
-              <div
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 800,
-                  fontSize: 18,
-                  color: 'var(--white)',
-                }}
-              >
-                Kaaval · ശബ്ദ-കാവൽ
-              </div>
-              <div className="mono" style={{ fontSize: 11.5, color: '#cfe0ff' }}>
-                Built solo aboard HackaThoni Alappuzha · Zero-camera ultrasonic elder care
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <button
-              type="button"
-              className="gx-cta-btn"
-              onClick={sonarArmed ? onOpenConsole : onArmAndOpenConsole}
-            >
-              {sonarArmed ? 'Return to live console' : 'Arm sonar console'}
-            </button>
-            <button
-              type="button"
-              onClick={onOpenCaregiver}
-              style={{
-                background: 'rgba(255,255,255,0.12)',
-                borderColor: 'rgba(255,255,255,0.3)',
-                color: '#fff',
-              }}
-            >
-              Caregiver companion
-            </button>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
