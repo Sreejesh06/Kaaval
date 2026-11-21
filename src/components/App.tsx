@@ -9,7 +9,9 @@ import type {
   SatelliteTelemetry,
 } from '../types';
 import { ArborFooter, ArborNavbar, type ArborRoute } from './ArborChrome';
+import { getFilteredSatelliteTargets } from '../audio/fusion';
 import { IconMicCheck, IconPhonePair, IconSliders } from './BrandAndIcons';
+import { QrCodeSvg } from './QrCodeSvg';
 import { SaasOverview } from './SaasOverview';
 import { RadarScopes } from './RadarScopes';
 import { SonicIronbowView } from './SonicIronbowView';
@@ -424,7 +426,12 @@ export const App: React.FC = () => {
 
       if (now - lastHudUpdateMsRef.current > 120) {
         lastHudUpdateMsRef.current = now;
-        const combinedPeople = frame.peopleCount + (satFresh ? satFresh.peopleCount : 0);
+        const dedupedSatTargets = getFilteredSatelliteTargets(
+          frame.targets || [],
+          satFresh,
+          true
+        );
+        const combinedPeople = frame.peopleCount + dedupedSatTargets.length;
         setHud({
           peopleCount: combinedPeople,
           distanceM:
@@ -709,49 +716,58 @@ export const App: React.FC = () => {
             <div className="shell">
               {showPairBar && (
                 <div className="pair-bar">
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div>
-                      <strong style={{ color: 'var(--content-primary)' }}>
-                        Caregiver phone app:
-                      </strong>{' '}
-                      {lanUrls.map((u) => (
-                        <a
-                          key={u}
-                          href={u}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mono"
-                          style={{
-                            color: 'var(--accent)',
-                            marginLeft: 8,
-                            marginRight: 12,
-                          }}
-                        >
-                          {u}
-                        </a>
-                      ))}
-                    </div>
-                    <div>
-                      <strong style={{ color: 'var(--content-primary)' }}>
-                        POCO M2 Pro backside satellite (HTTPS):
-                      </strong>{' '}
-                      {satHttpsUrls.map((u) => (
-                        <a
-                          key={u}
-                          href={u}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mono"
-                          style={{
-                            color: 'var(--content-secondary)',
-                            marginLeft: 8,
-                            marginRight: 12,
-                          }}
-                        >
-                          {u}
-                        </a>
-                      ))}
-                    </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
+                    {lanUrls[0] && (
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <QrCodeSvg value={lanUrls[0]} size={88} />
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--content-primary)' }}>
+                            Caregiver phone app
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--content-secondary)', marginBottom: 4 }}>
+                            Scan on same Wi-Fi hotspot for alerts &amp; 2-way Malayalam voice
+                          </div>
+                          {lanUrls.map((u) => (
+                            <a
+                              key={u}
+                              href={u}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mono"
+                              style={{ color: 'var(--accent)', fontSize: 12, marginRight: 10 }}
+                            >
+                              {u}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {satHttpsUrls[0] && (
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <QrCodeSvg value={satHttpsUrls[0]} size={88} />
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--content-primary)' }}>
+                            POCO Node B satellite (HTTPS)
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--content-secondary)', marginBottom: 4 }}>
+                            Scan on Android Chrome to guard backside blind spot
+                          </div>
+                          {satHttpsUrls.map((u) => (
+                            <a
+                              key={u}
+                              href={u}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mono"
+                              style={{ color: 'var(--content-secondary)', fontSize: 12, marginRight: 10 }}
+                            >
+                              {u}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     <button
