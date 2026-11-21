@@ -534,13 +534,88 @@ function main() {
     console.error('FAIL [Test 6]', tSorted);
   }
 
+  // Test 8: Dual-Node 3-Band FDMA Isolation + POCO M2 Pro Mono Backside Range & Respiration
+  const hostDual = new KaavalDualWorklet({
+    processorOptions: {
+      sampleRate: fs,
+      stereoCapable: true,
+      nodeProfile: 'HOST_DUAL_STEREO',
+    },
+  });
+  const pocoSat = new KaavalDualWorklet({
+    processorOptions: {
+      sampleRate: fs,
+      stereoCapable: false,
+      nodeProfile: 'SATELLITE_MONO',
+    },
+  });
+  let hostDualFrame = null;
+  let pocoFrame = null;
+  hostDual.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') hostDualFrame = msg;
+  };
+  pocoSat.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') pocoFrame = msg;
+  };
+
+  for (let f = 0; f < 240; f++) {
+    const tSec = f / frameRate;
+    const asyncDriftSamples = (f * 3.7) % N; // Simulates unsynchronized crystal clock drift across nodes!
+
+    // A) Laptop Front Zone is EMPTY, while POCO M2 Pro blasts 17.60-18.42 kHz nearby
+    hostDual.rxBuf.fill(0);
+    evalDelayedContinuousChirp(hostDual.rxBuf, directDelay, 0.85, fs, 18580, 19380, N);
+    evalDelayedContinuousChirp(hostDual.rxBuf, directDelay, 0.80, fs, 19540, 20340, N);
+    // Static front wall @ 2.2m
+    evalDelayedContinuousChirp(hostDual.rxBuf, directDelay + 2.2 / metersPerSample, 0.08, fs, 18580, 19380, N);
+    // Loud unsynchronized POCO M2 Pro chirp (17.60-18.42 kHz) arriving in same room!
+    evalDelayedContinuousChirp(hostDual.rxBuf, asyncDriftSamples, 0.18, fs, 17600, 18420, N);
+    for (let n = 0; n < N; n++) hostDual.rxBuf[n] += nextNoise();
+    hostDual.processRadarFrame();
+
+    // B) POCO M2 Pro guards Backside (-Z): heavy ~2cm direct bleed (1.95x) + Laptop cross-talk + Backside person @ 1.18m (17.0 BPM)
+    const backsidePersonM = 1.18 + 0.0022 * Math.sin(2 * Math.PI * (17.0 / 60.0) * tSec);
+    pocoSat.rxBuf.fill(0);
+    evalDelayedContinuousChirp(pocoSat.rxBuf, 8.0, 1.95, fs, 17600, 18420, N); // Tight 2cm USB-C mic-to-speaker bleed
+    evalDelayedContinuousChirp(pocoSat.rxBuf, 8.0 + 2.10 / metersPerSample, 0.085, fs, 17600, 18420, N); // Rigid rear wall @ 2.10m
+    evalDelayedContinuousChirp(pocoSat.rxBuf, 8.0 + backsidePersonM / metersPerSample, 0.019, fs, 17600, 18420, N); // Backside human!
+    // Unsynchronized Laptop stereo chirps arriving at POCO mic
+    evalDelayedContinuousChirp(pocoSat.rxBuf, (N - asyncDriftSamples) % N, 0.16, fs, 18580, 19380, N);
+    evalDelayedContinuousChirp(pocoSat.rxBuf, (N - asyncDriftSamples + 73) % N, 0.15, fs, 19540, 20340, N);
+    for (let n = 0; n < N; n++) pocoSat.rxBuf[n] += nextNoise();
+    pocoSat.processRadarFrame();
+  }
+
+  const pocoErrCm = pocoFrame ? Math.abs(pocoFrame.targetMeters - 1.18) * 100 : Infinity;
+  const pocoBpm = pocoFrame ? pocoFrame.respirationBpm : null;
+  const pocoBpmErr = pocoBpm === null ? Infinity : Math.abs(pocoBpm - 17.0);
+
+  if (
+    hostDualFrame &&
+    hostDualFrame.peopleCount === 0 &&
+    pocoFrame &&
+    pocoFrame.peopleCount === 1 &&
+    pocoErrCm < 3.5 &&
+    pocoBpm !== null &&
+    pocoBpmErr <= 1.0
+  ) {
+    console.log(
+      `PASS [Test 8 | Dual-Node 3-Band FDMA + POCO Mono] host_ghosts=0, poco_backside=1.18m->${pocoFrame.targetMeters.toFixed(2)}m (err ${pocoErrCm.toFixed(1)}cm), poco_bpm=${pocoBpm.toFixed(1)}/17.0`
+    );
+  } else {
+    failures.push(
+      `Test 8 failed: hostCount=${hostDualFrame?.peopleCount}, pocoCount=${pocoFrame?.peopleCount}, pocoDist=${pocoFrame?.targetMeters}, pocoBpm=${pocoBpm}`
+    );
+    console.error('FAIL [Test 8]', hostDualFrame?.peopleCount, pocoFrame?.peopleCount, pocoFrame?.targetMeters, pocoBpm);
+  }
+
   const elapsedMs = performance.now() - tStart;
-  if (failures.length === 0 && elapsedMs < 2000) {
-    console.log(`VERDICT: PASS (7/7 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
+  if (failures.length === 0 && elapsedMs < 2500) {
+    console.log(`VERDICT: PASS (8/8 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
     process.exit(0);
   } else {
-    if (elapsedMs >= 2000) {
-      failures.push(`Runtime ${elapsedMs.toFixed(1)} ms exceeded 2000 ms budget`);
+    if (elapsedMs >= 2500) {
+      failures.push(`Runtime ${elapsedMs.toFixed(1)} ms exceeded 2500 ms budget`);
     }
     console.error(`VERDICT: FAIL (${failures.join('; ')})`);
     process.exit(1);
