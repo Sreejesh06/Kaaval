@@ -413,20 +413,20 @@ export const SonicIronbowView: React.FC<Props> = ({
       }
 
       if (!armed && !activeSat) {
-        ctx.fillStyle = 'rgba(10, 11, 20, 0.88)';
+        ctx.fillStyle = 'rgba(22, 18, 28, 0.92)';
         ctx.beginPath();
-        ctx.roundRect(W * 0.5 - 220, H * 0.5 - 21, 440, 42, 10);
+        ctx.roundRect(W * 0.5 - 224, H * 0.5 - 21, 448, 42, 21);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#ffe24d';
+        ctx.lineWidth = 1.8;
         ctx.stroke();
-        ctx.fillStyle = '#a7ef77';
+        ctx.fillStyle = '#ffe24d';
         ctx.beginPath();
-        ctx.arc(W * 0.5 - 196, H * 0.5, 4, 0, Math.PI * 2);
+        ctx.arc(W * 0.5 - 198, H * 0.5, 4.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#f5f5f7';
+        ctx.fillStyle = '#fff4c1';
         ctx.font = '500 12.5px "DM Mono", monospace';
-        ctx.fillText('Click anywhere to arm 20 kHz multi-person sonar', W * 0.5 - 182, H * 0.5 + 4);
+        ctx.fillText('Click anywhere to arm 20 kHz multi-person sonar', W * 0.5 - 184, H * 0.5 + 4);
       }
 
       drawColorbar(ctx, W, H);

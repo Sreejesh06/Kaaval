@@ -1,10 +1,10 @@
 import React from 'react';
 
 /**
- * Bespoke Kaaval Brand System & Vector Kit
- * Geometric SaaS emblem + Offcampus editorial display wordmark:
- * - #2958D4 electric cobalt, #16121C / #21182D deep night,
- * - #FFE24D sun-yellow CTA/accent, #1CE494 / #3ED598 sonic emerald, #B9A2FF lilac.
+ * Bespoke Kaaval Brand System & Vector Kit — GrowthX Offcampus Craft
+ * - #16121C ink outlines (2px–3px, round joins/caps), hard offset block shadows,
+ * - #FFE24D sun-yellow, #2958D4 electric cobalt, #1CE494 / #3ED598 sonic emerald, #FFF4C1 cream.
+ * - Optically centered around x = 340 in viewBox="0 0 680 180".
  */
 
 export const KaavalLogoMark: React.FC<{ size?: number }> = ({ size = 34 }) => (
@@ -17,36 +17,37 @@ export const KaavalLogoMark: React.FC<{ size?: number }> = ({ size = 34 }) => (
     aria-hidden="true"
     style={{ flexShrink: 0 }}
   >
-    {/* Crisp Cobalt SaaS squircle */}
+    {/* Hard offset #16121C block shadow */}
+    <rect x="5" y="5" width="32" height="32" rx="9" fill="#16121C" />
+    {/* Tactile Sun-Yellow badge */}
     <rect
-      x="2"
-      y="2"
-      width="36"
-      height="36"
-      rx="10"
-      fill="#2958D4"
-      stroke="#FFFFFF"
-      strokeOpacity="0.24"
-      strokeWidth="1.5"
+      x="2.5"
+      y="2.5"
+      width="32"
+      height="32"
+      rx="9"
+      fill="#FFE24D"
+      stroke="#16121C"
+      strokeWidth="2.4"
     />
-    {/* Bold geometric K spine + arm in Sun-Yellow */}
+    {/* Bold geometric K in #16121C */}
     <path
-      d="M12.5 11.5V28.5M12.5 20L21.5 11.5M15.5 17.5L23 28.5"
-      stroke="#FFE24D"
-      strokeWidth="3.4"
+      d="M11.5 11V26M11.5 18.5L19 11M14.2 16.2L20.5 26"
+      stroke="#16121C"
+      strokeWidth="3.1"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-    {/* Radiating 20 kHz ultrasonic wavefront arcs on right */}
+    {/* Radiating Cobalt + Emerald 20 kHz wavefronts */}
     <path
-      d="M25.5 15.2C27.6 17.6 27.6 22.4 25.5 24.8"
-      stroke="#1CE494"
+      d="M23.2 14.5C25.2 16.8 25.2 20.2 23.2 22.5"
+      stroke="#2958D4"
       strokeWidth="2.6"
       strokeLinecap="round"
     />
     <path
-      d="M29.8 11.8C33.4 16.2 33.4 23.8 29.8 28.2"
-      stroke="#FFFFFF"
+      d="M27.2 11.5C30.5 15.4 30.5 21.6 27.2 25.5"
+      stroke="#16121C"
       strokeWidth="2.4"
       strokeLinecap="round"
     />
@@ -60,7 +61,7 @@ export const KaavalNavbarBrand: React.FC<{ onClick?: () => void }> = ({ onClick 
     className="gx-brand-btn"
     aria-label="Kaaval home"
   >
-    <KaavalLogoMark size={32} />
+    <KaavalLogoMark size={34} />
     <span className="gx-brand-word">Kaaval</span>
     <span className="gx-brand-ml">കാവൽ</span>
   </button>
@@ -68,68 +69,68 @@ export const KaavalNavbarBrand: React.FC<{ onClick?: () => void }> = ({ onClick 
 
 /**
  * Monumental Hero Wordmark Lockup inspired by GrowthX Offcampus `wordmark-live.svg`:
- * Emerald #1CE494 sonic starburst + heavy extruded #FFFFFF lettering with
- * #16121C outline/shadow + tilted #FFE24D Malayalam sticker pill.
+ * Dead-center KAAVAL lettering at x=340 inside 680x180 viewBox, balanced with
+ * left #1CE494 sonic burst and right tilted #FFE24D Malayalam sticker pill.
  */
 export const KaavalHeroWordmark: React.FC = () => (
   <svg
     className="gx-hero-wordmark"
-    viewBox="0 0 680 182"
+    viewBox="0 0 680 176"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     role="img"
     aria-label="Kaaval — Camera-free ultrasonic elder care"
   >
-    {/* Asymmetric #1CE494 sonic burst splash behind wordmark */}
+    {/* Left asymmetric #1CE494 sonic burst splash */}
     <path
-      d="M158 14L176 58L238 24L206 74L292 82L210 108L252 156L178 126L144 172L128 122L52 148L102 100L26 74L110 68L88 20L140 54L158 14Z"
+      d="M148 16L164 56L218 26L190 70L264 78L194 102L230 146L166 120L136 162L122 116L54 140L98 96L32 72L106 66L86 22L132 52L148 16Z"
       fill="#1CE494"
       stroke="#16121C"
       strokeWidth="3"
       strokeLinejoin="round"
     />
 
-    {/* Right-side deep night + emerald ultrasonic radar badge */}
-    <g transform="translate(566, 102)">
-      <circle cx="4" cy="4" r="50" fill="#16121C" />
-      <circle cx="0" cy="0" r="50" fill="#21182D" stroke="#16121C" strokeWidth="3" />
+    {/* Right concentric ultrasonic badge */}
+    <g transform="translate(568, 102)">
+      <circle cx="4" cy="4" r="44" fill="#16121C" />
+      <circle cx="0" cy="0" r="44" fill="#FFE24D" stroke="#16121C" strokeWidth="3" />
       <path
-        d="M-24 8a24 24 0 0 1 48 0"
-        stroke="#1CE494"
+        d="M-21 7a21 21 0 0 1 42 0"
+        stroke="#16121C"
         strokeWidth="3.2"
         strokeLinecap="round"
       />
       <path
-        d="M-36 -2a36 36 0 0 1 72 0"
-        stroke="#FFE24D"
+        d="M-32 -2a32 32 0 0 1 64 0"
+        stroke="#2958D4"
         strokeWidth="3.2"
         strokeLinecap="round"
       />
-      <circle cx="0" cy="16" r="6" fill="#FF6FB1" stroke="#FFFFFF" strokeWidth="2" />
+      <circle cx="0" cy="14" r="5.5" fill="#FF6FB1" stroke="#16121C" strokeWidth="2.4" />
     </g>
 
-    {/* Extruded 3D hard shadow layer */}
+    {/* Extruded 3D hard shadow layer — centered at x=346 (340 + 6px offset) */}
     <text
-      x="306"
+      x="346"
       y="128"
       textAnchor="middle"
       fontFamily="'Bricolage Grotesque', sans-serif"
       fontWeight="800"
-      fontSize="94"
+      fontSize="92"
       letterSpacing="-3"
       fill="#16121C"
     >
       KAAVAL
     </text>
 
-    {/* Crisp foreground white block wordmark with thick #16121C stroke */}
+    {/* Foreground white block wordmark — mathematically centered at x=340 */}
     <text
-      x="300"
+      x="340"
       y="122"
       textAnchor="middle"
       fontFamily="'Bricolage Grotesque', sans-serif"
       fontWeight="800"
-      fontSize="94"
+      fontSize="92"
       letterSpacing="-3"
       fill="#FFFFFF"
       stroke="#16121C"
@@ -140,8 +141,8 @@ export const KaavalHeroWordmark: React.FC = () => (
       KAAVAL
     </text>
 
-    {/* Tilted Malayalam sticker pill */}
-    <g transform="translate(474, 14) rotate(4)">
+    {/* Tilted Malayalam sticker pill at top-right */}
+    <g transform="translate(492, 16) rotate(4)">
       <rect x="3" y="3" width="124" height="36" rx="18" fill="#16121C" />
       <rect
         x="0"
@@ -149,7 +150,7 @@ export const KaavalHeroWordmark: React.FC = () => (
         width="124"
         height="36"
         rx="18"
-        fill="#FFE24D"
+        fill="#E4F25C"
         stroke="#16121C"
         strokeWidth="2.5"
       />
@@ -159,23 +160,23 @@ export const KaavalHeroWordmark: React.FC = () => (
         textAnchor="middle"
         fontFamily="'Noto Sans Malayalam', sans-serif"
         fontWeight="700"
-        fontSize="17"
+        fontSize="16.5"
         fill="#16121C"
       >
         ശബ്ദ-കാവൽ
       </text>
     </g>
 
-    {/* Offcampus 4-point sparkle stickers */}
+    {/* Extracted Offcampus 4-point static vector sparkles */}
     <path
-      d="M72 20c2 12 6.8 16.8 18.8 18.8-12 2-16.8 6.8-18.8 18.8-2-12-6.8-16.8-18.8-18.8 12-2 16.8-6.8 18.8-18.8z"
+      d="M66 22c1.8 10.5 6 14.7 16.5 16.5-10.5 1.8-14.7 6-16.5 16.5-1.8-10.5-6-14.7-16.5-16.5 10.5-1.8 14.7-6 16.5-16.5z"
       fill="#FFFFFF"
       stroke="#16121C"
-      strokeWidth="2.6"
+      strokeWidth="2.5"
       strokeLinejoin="round"
     />
     <path
-      d="M634 134c1.3 8 4.5 11.2 12.5 12.5-8 1.3-11.2 4.5-12.5 12.5-1.3-8-4.5-11.2-12.5-12.5 8-1.3 11.2-4.5 12.5-12.5z"
+      d="M632 130c1.2 7.2 4 10 11.2 11.2-7.2 1.2-10 4-11.2 11.2-1.2-7.2-4-10-11.2-11.2 7.2-1.2 10-4 11.2-11.2z"
       fill="#B9A2FF"
       stroke="#16121C"
       strokeWidth="2.2"
@@ -203,8 +204,8 @@ export const SparkleStarSvg: React.FC<{ className?: string; fill?: string; size?
   </svg>
 );
 
-/* Extracted cloud silhouette transitioning Cobalt Hero (#2958D4) directly into Deep Plum-Night (#21182D) */
-export const HeroCloudsDivider: React.FC<{ fill?: string }> = ({ fill = '#21182D' }) => (
+/* Extracted directly from growthx.club/_next_public/images/offcampus/cloud-bottom-left.svg */
+export const HeroCloudsDivider: React.FC<{ fill?: string }> = ({ fill = '#FFF4C1' }) => (
   <div className="gx-clouds" aria-hidden="true">
     <svg
       className="gx-cloud-left"
@@ -233,15 +234,15 @@ export const HeroCloudsDivider: React.FC<{ fill?: string }> = ({ fill = '#21182D
 );
 
 export const IconSonarWave: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M5 16a7 7 0 0 1 14 0" />
     <path d="M2 12a11 11 0 0 1 20 0" />
-    <circle cx="12" cy="18" r="2.3" fill="currentColor" />
+    <circle cx="12" cy="18" r="2.2" fill="currentColor" />
   </svg>
 );
 
 export const IconMicCheck: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <rect x="9" y="2" width="6" height="11" rx="3" />
     <path d="M5 10a7 7 0 0 0 14 0" />
     <path d="M12 17v4M8 21h8" />
@@ -249,7 +250,7 @@ export const IconMicCheck: React.FC<{ size?: number }> = ({ size = 16 }) => (
 );
 
 export const IconPhonePair: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <rect x="6" y="2" width="12" height="20" rx="3" />
     <circle cx="12" cy="18" r="1" fill="currentColor" />
     <path d="M10 6h4" />
@@ -257,10 +258,10 @@ export const IconPhonePair: React.FC<{ size?: number }> = ({ size = 16 }) => (
 );
 
 export const IconSliders: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
     <path d="M4 6h16M4 12h16M4 18h16" />
-    <circle cx="9" cy="6" r="2.2" fill="var(--page-default)" stroke="currentColor" />
-    <circle cx="15" cy="12" r="2.2" fill="var(--page-default)" stroke="currentColor" />
-    <circle cx="10" cy="18" r="2.2" fill="var(--page-default)" stroke="currentColor" />
+    <circle cx="9" cy="6" r="2.2" fill="currentColor" />
+    <circle cx="15" cy="12" r="2.2" fill="currentColor" />
+    <circle cx="10" cy="18" r="2.2" fill="currentColor" />
   </svg>
 );

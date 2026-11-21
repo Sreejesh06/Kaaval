@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KaavalSonarEngine } from '../audio/sonarEngine';
+import { getFilteredSatelliteTargets } from '../audio/fusion';
 import type {
   AnomalyTriggerReason,
   BenchmarkSummary,
@@ -9,7 +10,6 @@ import type {
   SatelliteTelemetry,
 } from '../types';
 import { ArborFooter, ArborNavbar, type ArborRoute } from './ArborChrome';
-import { getFilteredSatelliteTargets } from '../audio/fusion';
 import { IconMicCheck, IconPhonePair, IconSliders } from './BrandAndIcons';
 import { QrCodeSvg } from './QrCodeSvg';
 import { SaasOverview } from './SaasOverview';
@@ -96,6 +96,7 @@ export const App: React.FC = () => {
   const [satArmed, setSatArmed] = useState<boolean>(false);
   const [sampleRate, setSampleRate] = useState<number>(48000);
   const [rangeLockM, setRangeLockM] = useState<number>(0);
+  const [maxZoneM, setMaxZoneM] = useState<number>(3.0);
   const [fallThreshold, setFallThreshold] = useState<number>(4.5);
   const [apneaLimitSec, setApneaLimitSec] = useState<number>(0);
   const [txGain, setTxGain] = useState<number>(0.72);
@@ -204,7 +205,7 @@ export const App: React.FC = () => {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch('/api/lan-info')
       .then((r) => r.json())
@@ -219,7 +220,7 @@ export const App: React.FC = () => {
           satUrls.length ? satUrls : [`https://${window.location.hostname}:${hPort}/satellite`]
         );
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch('/api/incidents')
       .then((r) => r.json())
@@ -227,14 +228,14 @@ export const App: React.FC = () => {
         if (d.incidents) setIncidents(d.incidents);
         if (d.sarvamStats) setSarvamCallCount(d.sarvamStats.calls);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch('/api/benchmark')
       .then((r) => r.json())
       .then((d) => {
         if (d && d.trials) setBenchmark(d);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     let closed = false;
     let retryId = 0;
@@ -422,25 +423,33 @@ export const App: React.FC = () => {
 
       const now = performance.now();
       const sat = satelliteRef.current;
-      const satFresh = sat && sat.armed && Date.now() - sat.updatedAtMs < 2500 ? sat : null;
+      const satFresh = sat && sat.armed && Date.now() - sat.updatedAtMs < 3500 ? sat : null;
+      const dedupedSatTargets = getFilteredSatelliteTargets(
+        frame.targets || [],
+        satFresh,
+        true
+      );
+      const combinedPeople = frame.peopleCount + dedupedSatTargets.length;
+      const useBacksidePrimary = frame.peopleCount === 0 && dedupedSatTargets.length > 0;
+      const fusedDistM = useBacksidePrimary
+        ? dedupedSatTargets[0].distanceMeters
+        : frame.peopleCount > 0
+          ? frame.targetMeters
+          : 0;
+      const fusedAzDeg = useBacksidePrimary ? 180 : frame.targetAzimuthDeg;
+      const fusedBpm = frame.respirationBpm ?? (satFresh ? satFresh.respirationBpm : null);
+      const fusedMotion = Math.max(frame.motionEnergy, satFresh ? satFresh.motionEnergy : 0);
 
       if (now - lastHudUpdateMsRef.current > 120) {
         lastHudUpdateMsRef.current = now;
-        const dedupedSatTargets = getFilteredSatelliteTargets(
-          frame.targets || [],
-          satFresh,
-          true
-        );
-        const combinedPeople = frame.peopleCount + dedupedSatTargets.length;
         setHud({
           peopleCount: combinedPeople,
-          distanceM:
-            frame.peopleCount > 0 || !satFresh ? frame.targetMeters : satFresh.targetMeters,
-          azimuthDeg:
-            frame.peopleCount > 0 || !satFresh ? frame.targetAzimuthDeg : 180,
-          dispMm: frame.displacementMm,
-          bpm: frame.respirationBpm ?? (satFresh ? satFresh.respirationBpm : null),
-          motionEnergy: Math.max(frame.motionEnergy, satFresh ? satFresh.motionEnergy : 0),
+          distanceM: fusedDistM,
+          azimuthDeg: fusedAzDeg,
+          dispMm:
+            useBacksidePrimary && satFresh ? satFresh.displacementMm : frame.displacementMm,
+          bpm: fusedBpm,
+          motionEnergy: fusedMotion,
           sonarDb: frame.sonarDb,
           speechDb: frame.speechDb,
         });
@@ -456,10 +465,11 @@ export const App: React.FC = () => {
             type: 'room_telemetry',
             data: {
               guardMode: guardModeRef.current,
-              distanceM: frame.targetMeters,
-              azimuthDeg: frame.targetAzimuthDeg,
-              bpm: frame.respirationBpm,
-              motionEnergy: frame.motionEnergy,
+              peopleCount: combinedPeople,
+              distanceM: fusedDistM,
+              azimuthDeg: fusedAzDeg,
+              bpm: fusedBpm,
+              motionEnergy: fusedMotion,
             },
           })
         );
@@ -578,10 +588,10 @@ export const App: React.FC = () => {
     guardMode === 'OFFLINE'
       ? ''
       : guardMode === 'ANOMALY_PREALERT'
-      ? 'on-amber'
-      : guardMode === 'ARMED_MONITORING' || guardMode === 'RESOLVED_SAFE'
-      ? 'on-teal'
-      : 'on-red';
+        ? 'on-amber'
+        : guardMode === 'ARMED_MONITORING' || guardMode === 'RESOLVED_SAFE'
+          ? 'on-teal'
+          : 'on-red';
 
   return (
     <div className="app-frame">
@@ -609,6 +619,7 @@ export const App: React.FC = () => {
             }}
             onOpenCaregiver={() => navigateTo('CAREGIVER')}
             onOpenBenchmark={() => navigateTo('BENCHMARK')}
+            onOpenSatellite={() => navigateTo('SATELLITE')}
           />
         ) : (
           <>
@@ -769,7 +780,35 @@ export const App: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      disabled={waStatus.sending}
+                      onClick={async () => {
+                        setWaStatus((p) => ({ ...p, sending: true, feedback: 'Sending to WhatsApp...' }));
+                        try {
+                          const r = await fetch('/api/whatsapp/test', { method: 'POST' });
+                          const d = await r.json();
+                          setWaStatus((p) => ({
+                            ...p,
+                            sending: false,
+                            feedback: d.sent
+                              ? `WhatsApp delivered to ${d.recipientMasked} ✓`
+                              : d.detail || 'Check TextMeBot WhatsApp link',
+                          }));
+                        } catch {
+                          setWaStatus((p) => ({
+                            ...p,
+                            sending: false,
+                            feedback: 'Network error sending WhatsApp',
+                          }));
+                        }
+                      }}
+                    >
+                      {waStatus.sending
+                        ? 'Sending WhatsApp...'
+                        : `Send test WhatsApp (${waStatus.recipient || '+91•••4916'})`}
+                    </button>
                     <button
                       type="button"
                       onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}
@@ -779,12 +818,32 @@ export const App: React.FC = () => {
                     <button type="button" onClick={() => navigateTo('SATELLITE')}>
                       Satellite view
                     </button>
+                    {waStatus.feedback && (
+                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--accent)' }}>
+                        {waStatus.feedback}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
 
               {showTune && (
                 <div className="tune-drawer">
+                  <label className="ctrl-inline">
+                    Detection radius:
+                    <select
+                      value={maxZoneM}
+                      onChange={(e) => {
+                        const m = parseFloat(e.target.value);
+                        setMaxZoneM(m);
+                        engineRef.current?.setMaxRange(m);
+                      }}
+                    >
+                      <option value={1.4}>1.4 m (Desk/floor — ignore bed)</option>
+                      <option value={2.1}>2.1 m (Bedside)</option>
+                      <option value={3.0}>3.0 m (Full room)</option>
+                    </select>
+                  </label>
                   <label className="ctrl-inline">
                     Range gate:
                     <select
@@ -865,9 +924,8 @@ export const App: React.FC = () => {
                 <div className="metric-cell">
                   <span className="readout-k">
                     <span
-                      className={`led ${
-                        (sonarArmed || satArmed) && hud.peopleCount > 0 ? 'on-teal' : ''
-                      }`}
+                      className={`led ${(sonarArmed || satArmed) && hud.peopleCount > 0 ? 'on-teal' : ''
+                        }`}
                     />
                     Room occupancy
                   </span>
@@ -875,9 +933,8 @@ export const App: React.FC = () => {
                     {!sonarArmed && !satArmed
                       ? '--'
                       : hud.peopleCount === 0
-                      ? '0 · Empty'
-                      : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${
-                          hud.azimuthDeg >= 0 ? '+' : ''
+                        ? '0 · Empty'
+                        : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${hud.azimuthDeg >= 0 ? '+' : ''
                         }${hud.azimuthDeg.toFixed(0)}°)`}
                   </span>
                 </div>
@@ -895,8 +952,8 @@ export const App: React.FC = () => {
                     {hud.bpm
                       ? `${hud.bpm.toFixed(0)} BPM`
                       : sonarArmed || satArmed
-                      ? 'Acquiring'
-                      : '--'}
+                        ? 'Acquiring'
+                        : '--'}
                   </span>
                 </div>
                 <div className="metric-cell">
@@ -910,9 +967,8 @@ export const App: React.FC = () => {
                 <div className="metric-cell">
                   <span className="readout-k">
                     <span
-                      className={`led ${
-                        guardMode === 'LISTENING_CONSENT' ? 'on-amber' : 'on-red'
-                      }`}
+                      className={`led ${guardMode === 'LISTENING_CONSENT' ? 'on-amber' : 'on-red'
+                        }`}
                     />
                     Speech (&lt;17.5 kHz)
                   </span>

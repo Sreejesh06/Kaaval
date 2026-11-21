@@ -375,29 +375,31 @@ export const SatelliteNodeView: React.FC<Props> = ({ onBackToConsole }) => {
           <div
             className="cg-alert-banner"
             style={{
-              background: 'var(--surface-subtle)',
-              borderColor: 'var(--line-strong)',
+              background: 'var(--yellow)',
+              borderColor: 'var(--ink)',
             }}
           >
             <div
               className="mono"
-              style={{ fontSize: 12, fontWeight: 600, color: 'var(--status-warn)', marginBottom: 6 }}
+              style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}
             >
               Android Chrome requires HTTPS for ultrasonic mic access
             </div>
-            <p style={{ fontSize: 13.5, color: 'var(--content-secondary)', marginBottom: 12 }}>
+            <p style={{ fontSize: 13.5, color: 'var(--ink)', marginBottom: 12 }}>
               Tap below to switch to Kaaval&apos;s local encrypted gateway (accept the self-signed
-              LAN certificate once via <strong style={{ color: 'var(--content-primary)' }}>Advanced → Proceed</strong>).
+              LAN certificate once via <strong>Advanced → Proceed</strong>).
             </p>
             <a
               href={secureRedirectUrl}
-              className="ui-btn-primary"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 minHeight: 42,
-                padding: '0 16px',
-                borderRadius: 10,
+                padding: '0 18px',
+                borderRadius: 999,
+                background: 'var(--ink)',
+                color: 'var(--yellow)',
+                fontWeight: 700,
                 textDecoration: 'none',
               }}
             >
