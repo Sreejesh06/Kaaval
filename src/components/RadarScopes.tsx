@@ -77,34 +77,34 @@ export const RadarScopes: React.FC<Props> = ({
 
   return (
     <div className="scopes-grid">
-      <div className="panel">
+      <div className="panel night-panel">
         <div className="panel-head">
-          <span className="panel-title">Range-Time Waterfall</span>
+          <span className="panel-title">Range-time waterfall</span>
           <span className="panel-meta">0.32m → 3.0m</span>
         </div>
         <canvas ref={cvWaterfallRef} className="scope-canvas" width={540} height={152} />
       </div>
 
-      <div className="panel">
+      <div className="panel night-panel">
         <div className="panel-head">
-          <span className="panel-title">Range Profile</span>
-          <span className="panel-meta">Presence / Motion</span>
+          <span className="panel-title">Range profile</span>
+          <span className="panel-meta">Presence &amp; motion</span>
         </div>
         <canvas ref={cvRangeRef} className="scope-canvas" width={540} height={152} />
       </div>
 
-      <div className="panel">
+      <div className="panel night-panel">
         <div className="panel-head">
-          <span className="panel-title">Chest Phase Wave</span>
+          <span className="panel-title">Chest phase wave</span>
           <span className="panel-meta">λ = 19.1mm</span>
         </div>
         <canvas ref={cvBreathRef} className="scope-canvas" width={540} height={152} />
       </div>
 
-      <div className="panel">
+      <div className="panel night-panel">
         <div className="panel-head">
-          <span className="panel-title">Speech Firewall &amp; IQ</span>
-          <span className="panel-meta">&lt;17.5 kHz Zeroed</span>
+          <span className="panel-title">Speech firewall &amp; IQ</span>
+          <span className="panel-meta">&lt;17.5 kHz zeroed</span>
         </div>
         <canvas ref={cvSpecRef} className="scope-canvas" width={540} height={152} />
       </div>
@@ -143,7 +143,7 @@ function drawWaterfall(canvas: HTMLCanvasElement | null, f: RadarFrame) {
 
   // Subtle distance ticks at top edge
   ctx.fillStyle = 'rgba(232,238,245,0.65)';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.font = '10px "DM Mono", monospace';
   const maxM = f.clutterRemovedProfile.length * f.metersPerSample;
   for (let m = 0.5; m < maxM; m += 0.5) {
     const x = ((m - 0.2) / (maxM - 0.2)) * w;
@@ -164,7 +164,7 @@ function drawRangeProfile(canvas: HTMLCanvasElement | null, f: RadarFrame) {
   const maxM = f.clutterRemovedProfile.length * f.metersPerSample;
   ctx.strokeStyle = '#141d29';
   ctx.fillStyle = '#566579';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.font = '10px "DM Mono", monospace';
 
   for (let m = 0.5; m < maxM; m += 0.5) {
     const x = (m / maxM) * w;
@@ -251,7 +251,7 @@ function drawBreathingWave(
   ctx.stroke();
 
   ctx.fillStyle = '#8a99ad';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.font = '10px "DM Mono", monospace';
   ctx.fillText(`SCALE ±${maxAbs.toFixed(1)} mm`, 8, 13);
   ctx.fillText(
     f.respirationBpm ? `AUTOCORR: ${f.respirationBpm.toFixed(0)} BPM` : 'AUTOCORR: ACQUIRING / STILL',
@@ -298,7 +298,7 @@ function drawSpectrumAndPolar(
     ctx.fillRect(i * barW, h - barH, Math.max(1, barW - 0.8), barH);
   }
 
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.font = '10px "DM Mono", monospace';
   ctx.fillStyle = '#fda4af';
   ctx.fillText('ZEROED SPEECH (<17.5k)', 6, 13);
   ctx.fillStyle = '#14b8a6';
@@ -357,7 +357,7 @@ function drawConsentGateOverlay(canvas: HTMLCanvasElement | null, mode: GuardMod
   ctx.strokeRect(8, 8, w - 16, h - 16);
 
   ctx.fillStyle = '#fda4af';
-  ctx.font = '600 12px "IBM Plex Mono", monospace';
+  ctx.font = '600 12px "DM Mono", monospace';
   ctx.fillText(
     mode === 'PLAYING_PROMPT'
       ? 'ULTRASOUND PAUSED // PLAYING BULBUL v3 MALAYALAM PROMPT'
@@ -367,7 +367,7 @@ function drawConsentGateOverlay(canvas: HTMLCanvasElement | null, mode: GuardMod
   );
 
   ctx.fillStyle = '#8a99ad';
-  ctx.font = '11px "IBM Plex Mono", monospace';
+  ctx.font = '11px "DM Mono", monospace';
   ctx.fillText(
     'Speech firewall automatically re-locks (<17.5 kHz zeroed) once check-in completes.',
     22,

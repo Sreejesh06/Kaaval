@@ -4,6 +4,7 @@ import type { BenchmarkSummary, GroundTruthClass, RadarFrame } from '../types';
 interface Props {
   summary: BenchmarkSummary;
   sonarArmed: boolean;
+  onRequestArm?: () => void;
   subscribeFrames: (cb: ((f: RadarFrame) => void) | null) => void;
   onSummaryUpdated: (next: BenchmarkSummary) => void;
 }
@@ -11,29 +12,30 @@ interface Props {
 const CLASSES: Array<{ id: GroundTruthClass; label: string; protocol: string }> = [
   {
     id: 'EMPTY_CABIN',
-    label: 'Empty Cabin',
-    protocol: 'Step >2.5m out of beam for 5s (measures false-alarm baseline on boat).',
+    label: 'Empty cabin',
+    protocol: 'Step >2.5m out of the beam for 5s (measures false-alarm baseline on boat).',
   },
   {
     id: 'SEATED_BREATHING',
-    label: 'Seated Breathing',
-    protocol: 'Sit still @ 0.7–1.2m and breathe normally for 5s.',
+    label: 'Seated breathing',
+    protocol: 'Sit still at 0.6–1.4m and breathe naturally for 5s.',
   },
   {
     id: 'WALKING_NORMAL',
-    label: 'Walking Past',
-    protocol: 'Walk continuously across/toward laptop @ 0.5–2.0m for 5s.',
+    label: 'Walking past',
+    protocol: 'Walk continuously across or toward the laptop at 0.5–2.0m for 5s.',
   },
   {
     id: 'FALL_STILLNESS',
-    label: 'Fall + Stillness',
-    protocol: 'Drop/slump rapidly in first 1.5s, then freeze motionless for remaining 3.5s.',
+    label: 'Fall + stillness',
+    protocol: 'Drop or slump rapidly in the first 1.5s, then stay motionless for 3.5s.',
   },
 ];
 
 export const BenchmarkPanel: React.FC<Props> = ({
   summary,
   sonarArmed,
+  onRequestArm,
   subscribeFrames,
   onSummaryUpdated,
 }) => {
@@ -41,7 +43,11 @@ export const BenchmarkPanel: React.FC<Props> = ({
   const [recordingLeft, setRecordingLeft] = useState<number | null>(null);
 
   const runFiveSecondTrial = () => {
-    if (!sonarArmed || recordingLeft !== null) return;
+    if (!sonarArmed) {
+      onRequestArm?.();
+      return;
+    }
+    if (recordingLeft !== null) return;
 
     const frames: RadarFrame[] = [];
     subscribeFrames((f) => frames.push(f));
@@ -91,8 +97,10 @@ export const BenchmarkPanel: React.FC<Props> = ({
     }
     const breathStdMm = Math.sqrt(varDisp / frames.length);
 
-    // Measure tail motion in final 2 seconds after peak impact (distinguishes fall+stillness from walking)
-    const tailStart = Math.min(frames.length - 1, Math.max(peakIdx + 8, Math.floor(frames.length * 0.6)));
+    const tailStart = Math.min(
+      frames.length - 1,
+      Math.max(peakIdx + 8, Math.floor(frames.length * 0.6))
+    );
     let tailSum = 0;
     let tailCount = 0;
     for (let i = tailStart; i < frames.length; i++) {
@@ -139,14 +147,14 @@ export const BenchmarkPanel: React.FC<Props> = ({
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          Houseboat Acoustic Evaluation // 4x4 Confusion Matrix (n = {summary.trials.length})
+          Houseboat acoustic evaluation · 4×4 confusion matrix (n = {summary.trials.length})
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={exportJson} disabled={summary.trials.length === 0}>
-            EXPORT JSON
+          <button type="button" onClick={exportJson} disabled={summary.trials.length === 0}>
+            Export JSON
           </button>
-          <button onClick={clearAll} disabled={summary.trials.length === 0}>
-            RESET TRIALS
+          <button type="button" onClick={clearAll} disabled={summary.trials.length === 0}>
+            Reset trials
           </button>
         </div>
       </div>
@@ -155,21 +163,23 @@ export const BenchmarkPanel: React.FC<Props> = ({
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: 10,
+          gap: 12,
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '8px 10px',
-          background: '#080b10',
-          border: '1px solid #1e2836',
+          padding: '12px 14px',
+          background: 'var(--cream2)',
+          border: '2px solid var(--ink)',
+          borderRadius: 14,
           marginBottom: 12,
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 11, color: '#8a99ad' }}>
-            GROUND TRUTH:
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <span className="mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+            Ground truth:
           </span>
           {CLASSES.map((c) => (
             <button
+              type="button"
               key={c.id}
               className={selectedClass === c.id ? 'btn-tab-active' : ''}
               onClick={() => setSelectedClass(c.id)}
@@ -180,36 +190,37 @@ export const BenchmarkPanel: React.FC<Props> = ({
         </div>
 
         <button
+          type="button"
           className="btn-arm"
-          disabled={!sonarArmed || recordingLeft !== null}
+          disabled={recordingLeft !== null}
           onClick={runFiveSecondTrial}
         >
           {recordingLeft !== null
-            ? `RECORDING... ${recordingLeft.toFixed(1)}s`
+            ? `Recording... ${recordingLeft.toFixed(1)}s`
             : !sonarArmed
-            ? 'ARM SONAR FIRST'
-            : 'RECORD 5.0s LIVE TRIAL'}
+            ? 'Arm sonar first'
+            : 'Record 5.0s live trial'}
         </button>
       </div>
 
-      <div className="mono" style={{ fontSize: 11, color: '#8a99ad', marginBottom: 10 }}>
-        Protocol for <strong style={{ color: '#e8eef5' }}>{activeSpec.label}</strong>:{' '}
+      <div className="mono" style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+        Protocol for <strong style={{ color: 'var(--ink)' }}>{activeSpec.label}</strong>:{' '}
         {activeSpec.protocol}
       </div>
 
-      <div className="readout-strip" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="readout-strip">
         <div className="readout">
-          <div className="readout-k">Overall Classification Accuracy</div>
+          <div className="readout-k">Classification accuracy</div>
           <div className="readout-v teal">{summary.accuracyPct.toFixed(1)}%</div>
           <div className="readout-sub">{summary.trials.length} live 5s houseboat trials</div>
         </div>
         <div className="readout">
-          <div className="readout-k">Unverified False-Alarm Rate</div>
+          <div className="readout-k">Unverified false-alarm rate</div>
           <div className="readout-v">{summary.falseAlarmRatePct.toFixed(1)}%</div>
           <div className="readout-sub">Further filtered by Sarvam voice gate</div>
         </div>
         <div className="readout">
-          <div className="readout-k">Fall + Stillness Recall</div>
+          <div className="readout-k">Fall + stillness recall</div>
           <div className="readout-v amber">{summary.fallRecallPct.toFixed(1)}%</div>
           <div className="readout-sub">Impulse + post-spike stillness rule</div>
         </div>
@@ -218,9 +229,9 @@ export const BenchmarkPanel: React.FC<Props> = ({
       <table className="matrix-table">
         <thead>
           <tr>
-            <th>ACTUAL \ PREDICTED</th>
+            <th>Actual \ Predicted</th>
             {CLASSES.map((c) => (
-              <th key={c.id}>{c.label.toUpperCase()}</th>
+              <th key={c.id}>{c.label}</th>
             ))}
           </tr>
         </thead>

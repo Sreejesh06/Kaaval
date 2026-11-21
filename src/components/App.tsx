@@ -7,6 +7,14 @@ import type {
   IncidentRecord,
   RadarFrame,
 } from '../types';
+import {
+  IconMicCheck,
+  IconPhonePair,
+  IconSliders,
+  IconSonarWave,
+  KaavalNavbarBrand,
+} from './BrandAndIcons';
+import { SaasOverview } from './SaasOverview';
 import { RadarScopes } from './RadarScopes';
 import { SonicIronbowView } from './SonicIronbowView';
 import { SpatialField3D } from './SpatialField3D';
@@ -27,15 +35,42 @@ const EMPTY_BENCHMARK: BenchmarkSummary = {
   fallRecallPct: 0,
 };
 
+function formatGuardStatus(mode: GuardMode, prealertLeftSec: number): string {
+  switch (mode) {
+    case 'OFFLINE':
+      return 'Standby (0 px cam)';
+    case 'ARMED_MONITORING':
+      return 'Sonar armed';
+    case 'ANOMALY_PREALERT':
+      return `Pre-alert ${prealertLeftSec.toFixed(1)}s`;
+    case 'PLAYING_PROMPT':
+      return 'Asking in Malayalam';
+    case 'LISTENING_CONSENT':
+      return 'Listening (9.5s gate)';
+    case 'TRIAGING_RESPONSE':
+      return 'Sarvam triage';
+    case 'RESOLVED_SAFE':
+      return 'Verified safe';
+    case 'EMERGENCY_DISPATCHED':
+      return 'Emergency alerted';
+  }
+}
+
 export const App: React.FC = () => {
   const initialCaregiverRoute =
     typeof window !== 'undefined' &&
     (window.location.pathname.startsWith('/caregiver') ||
       new URLSearchParams(window.location.search).get('view') === 'caregiver');
 
+  const initialTab =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('view') === 'console'
+      ? 'CONSOLE'
+      : 'OVERVIEW';
+
   const [isCaregiverScreen, setIsCaregiverScreen] = useState<boolean>(initialCaregiverRoute);
   const [guardMode, setGuardMode] = useState<GuardMode>('OFFLINE');
-  const [activeTab, setActiveTab] = useState<'CONSOLE' | 'BENCHMARK'>('CONSOLE');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'CONSOLE' | 'BENCHMARK'>(initialTab);
   const [viewMode, setViewMode] = useState<'IRONBOW' | 'SONAR3D'>('IRONBOW');
   const [creditLocked, setCreditLocked] = useState<boolean>(true);
   const [autoTriggerEnabled, setAutoTriggerEnabled] = useState<boolean>(false);
@@ -218,7 +253,6 @@ export const App: React.FC = () => {
         setLiveTranscriptMl('');
         setVadActive(false);
 
-        // 1. Pause chirp smoothly so ultrasound never distorts Malayalam TTS
         engine.setWorkletMode('VOICE_PAUSE');
 
         const promptRes = await fetch(`/api/prompt-audio?trigger=${encodeURIComponent(trigger)}`);
@@ -231,7 +265,6 @@ export const App: React.FC = () => {
 
         await engine.playAlertToneAndBase64Audio(promptData.audioBase64, true);
 
-        // 2. Open 9.5-second Consent Speech Gate -> stream 16 kHz PCM to Saaras v4 WS
         const windowMs = 9500;
         setGuardMode('LISTENING_CONSENT');
         setConsentRemainingSec(windowMs / 1000);
@@ -249,7 +282,6 @@ export const App: React.FC = () => {
         setConsentRemainingSec(0);
         setLiveTranscriptMl(sttResult.transcriptMl);
 
-        // 3. Worklet is now locked back to SONAR_LOCKED (<17.5 kHz zeroed). Run Sarvam Triage!
         setGuardMode('TRIAGING_RESPONSE');
         const triageRes = await fetch('/api/triage', {
           method: 'POST',
@@ -345,7 +377,6 @@ export const App: React.FC = () => {
         );
       }
 
-      // Autonomous physical anomaly evaluation ONLY when Auto-Trigger is enabled & armed
       const mode = guardModeRef.current;
       if (
         !autoTrigRef.current ||
@@ -356,7 +387,6 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 1. Evaluate active 4.0-second Post-Impact Recovery Window
       const pre = prealertStateRef.current;
       if (pre.active) {
         const elapsedSec = (now - pre.startedMs) / 1000;
@@ -370,7 +400,6 @@ export const App: React.FC = () => {
           pre.active = false;
           const tailMean =
             pre.postMotions.reduce((a, b) => a + b, 0) / Math.max(1, pre.postMotions.length);
-          // If resident continued walking (tailMean >= 1.55), cancel pre-alert silently!
           if (tailMean >= 1.55) {
             setGuardMode('ARMED_MONITORING');
           } else {
@@ -385,7 +414,6 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 2. Detect new high-energy Fall / Sudden Slump Impulse
       if (frame.motionEnergy >= fallThreshRef.current) {
         pre.active = true;
         pre.startedMs = now;
@@ -398,7 +426,6 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 3. Optional Prolonged Absence of Respiration / Stillness Timer
       if (apneaLimitRef.current > 0) {
         if (frame.motionEnergy > 0.75 || frame.respirationBpm !== null) {
           stillnessSinceMsRef.current = now;
@@ -429,8 +456,27 @@ export const App: React.FC = () => {
       stillnessSinceMsRef.current = performance.now();
       setGuardMode('ARMED_MONITORING');
     } catch (err) {
-      setErrorMsg('Mic/AudioWorklet error: ' + (err as Error).message);
+      setErrorMsg('AudioWorklet error: ' + (err as Error).message);
     }
+  };
+
+  const armAndOpenConsole = async () => {
+    setActiveTab('CONSOLE');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (guardMode === 'OFFLINE') {
+      await armSonar();
+    }
+  };
+
+  const toggleCreditGuard = async () => {
+    const next = !creditLocked;
+    const r = await fetch('/api/credit-guard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locked: next }),
+    });
+    const d = await r.json();
+    setCreditLocked(Boolean(d.creditGuardLocked));
   };
 
   if (isCaregiverScreen) {
@@ -448,307 +494,386 @@ export const App: React.FC = () => {
       : 'on-red';
 
   return (
-    <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">KAAVAL</span>
-          <span className="brand-ml">കാവൽ</span>
-          <span className="status-inline">
-            <span className={`led ${ledClass}`} />
-            <span>
-              {guardMode === 'ANOMALY_PREALERT'
-                ? `PRE-ALERT ${prealertLeftSec.toFixed(1)}s`
-                : guardMode.replaceAll('_', ' ')}
+    <div>
+      {/* Sticky GrowthX Offcampus SaaS Navigation Bar */}
+      <header className={`gx-nav-wrap ${activeTab === 'OVERVIEW' ? 'on-blue' : ''}`}>
+        <nav className="gx-nav" aria-label="Primary product navigation">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+            <KaavalNavbarBrand
+              onClick={() => {
+                setActiveTab('OVERVIEW');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+
+            <span className="status-inline">
+              <span className={`led ${ledClass}`} />
+              <span>{formatGuardStatus(guardMode, prealertLeftSec)}</span>
             </span>
-          </span>
-          {errorMsg && <span className="err-inline">{errorMsg}</span>}
-        </div>
 
-        <div className="toolbar">
-          {!sonarArmed ? (
-            <button className="btn-arm" onClick={armSonar}>
-              ARM SONAR
+            {errorMsg && <span className="err-inline">{errorMsg}</span>}
+          </div>
+
+          <div className="gx-nav-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'OVERVIEW'}
+              className={`gx-nav-tab ${activeTab === 'OVERVIEW' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('OVERVIEW');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              Product overview
             </button>
-          ) : (
-            <button onClick={() => engineRef.current?.zeroClutter()}>ZERO CLUTTER</button>
-          )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'CONSOLE'}
+              className={`gx-nav-tab ${activeTab === 'CONSOLE' ? 'active' : ''}`}
+              onClick={() => setActiveTab('CONSOLE')}
+            >
+              Live console
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'BENCHMARK'}
+              className={`gx-nav-tab ${activeTab === 'BENCHMARK' ? 'active' : ''}`}
+              onClick={() => setActiveTab('BENCHMARK')}
+            >
+              Benchmark ({benchmark.trials.length})
+            </button>
+            <button
+              type="button"
+              className="gx-nav-tab"
+              onClick={() => setIsCaregiverScreen(true)}
+            >
+              Caregiver app
+            </button>
+          </div>
 
-          <button
-            className={!creditLocked ? 'btn-danger' : 'btn-tab-active'}
-            onClick={async () => {
-              const next = !creditLocked;
-              const r = await fetch('/api/credit-guard', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ locked: next }),
-              });
-              const d = await r.json();
-              setCreditLocked(Boolean(d.creditGuardLocked));
-            }}
-            title="Protects your 500 Sarvam credits during testing. Switch to SARVAM LIVE only for voice rehearsal & judging."
-          >
-            {creditLocked ? 'CREDITS LOCKED (0 CR)' : 'SARVAM LIVE'}
-          </button>
+          <div className="gx-nav-actions">
+            <button
+              type="button"
+              className={creditLocked ? '' : 'btn-green'}
+              onClick={toggleCreditGuard}
+              title="Protects Sarvam API credits while testing sonar. Toggle to Sarvam live only for spoken voice check-in demos."
+            >
+              {creditLocked ? '0-credit lock' : 'Sarvam live'}
+            </button>
 
-          <button
-            className={autoTriggerEnabled ? 'btn-tab-active' : ''}
-            onClick={() => setAutoTriggerEnabled((v) => !v)}
-            title="Enable autonomous fall -> voice trigger when ready to demo"
-          >
-            {autoTriggerEnabled ? 'AUTO-FALL: ON' : 'AUTO-FALL: PAUSED'}
-          </button>
+            {activeTab === 'OVERVIEW' ? (
+              <button
+                type="button"
+                className="btn-arm"
+                onClick={sonarArmed ? () => setActiveTab('CONSOLE') : armAndOpenConsole}
+              >
+                <IconSonarWave size={16} />
+                {sonarArmed ? 'Open console' : 'Arm sonar'}
+              </button>
+            ) : (
+              <>
+                {!sonarArmed ? (
+                  <button type="button" className="btn-arm" onClick={armSonar}>
+                    <IconSonarWave size={16} />
+                    Arm sonar
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => engineRef.current?.zeroClutter()}>
+                    Zero room clutter
+                  </button>
+                )}
 
-          <button
-            className="btn-danger"
-            disabled={
-              !sonarArmed ||
-              guardMode === 'LISTENING_CONSENT' ||
-              guardMode === 'PLAYING_PROMPT' ||
-              guardMode === 'TRIAGING_RESPONSE'
-            }
-            onClick={() =>
-              runConsentCheckIn(
-                'MANUAL_VERIFICATION_TEST',
-                hud.distanceM,
-                hud.motionEnergy,
-                hud.bpm,
-                hud.azimuthDeg
-              )
-            }
-          >
-            VOICE CHECK-IN
-          </button>
+                <button
+                  type="button"
+                  className={autoTriggerEnabled ? 'btn-green' : ''}
+                  onClick={() => setAutoTriggerEnabled((v) => !v)}
+                  title="Enable autonomous fall + stillness voice check-in"
+                >
+                  {autoTriggerEnabled ? 'Auto-fall: on' : 'Auto-fall: paused'}
+                </button>
 
-          <button
-            className={showPairBar ? 'btn-tab-active' : ''}
-            onClick={() => setShowPairBar((v) => !v)}
-          >
-            PAIR PHONE
-          </button>
+                <button
+                  type="button"
+                  className="btn-lilac"
+                  disabled={
+                    !sonarArmed ||
+                    guardMode === 'LISTENING_CONSENT' ||
+                    guardMode === 'PLAYING_PROMPT' ||
+                    guardMode === 'TRIAGING_RESPONSE'
+                  }
+                  onClick={() =>
+                    runConsentCheckIn(
+                      'MANUAL_VERIFICATION_TEST',
+                      hud.distanceM,
+                      hud.motionEnergy,
+                      hud.bpm,
+                      hud.azimuthDeg
+                    )
+                  }
+                >
+                  <IconMicCheck size={16} />
+                  Voice check-in
+                </button>
 
-          <button
-            className={showTune ? 'btn-tab-active' : ''}
-            onClick={() => setShowTune((v) => !v)}
-          >
-            TUNE
-          </button>
+                <button
+                  type="button"
+                  className={showPairBar ? 'btn-tab-active' : ''}
+                  onClick={() => setShowPairBar((v) => !v)}
+                >
+                  <IconPhonePair size={16} />
+                  Pair phone
+                </button>
 
-          <button
-            className={activeTab === 'CONSOLE' && viewMode === 'IRONBOW' ? 'btn-tab-active' : ''}
-            onClick={() => {
-              setActiveTab('CONSOLE');
-              setViewMode('IRONBOW');
-            }}
-          >
-            IRONBOW
-          </button>
-          <button
-            className={activeTab === 'CONSOLE' && viewMode === 'SONAR3D' ? 'btn-tab-active' : ''}
-            onClick={() => {
-              setActiveTab('CONSOLE');
-              setViewMode('SONAR3D');
-            }}
-          >
-            3D SONAR
-          </button>
-          <button
-            className={activeTab === 'BENCHMARK' ? 'btn-tab-active' : ''}
-            onClick={() => setActiveTab('BENCHMARK')}
-          >
-            EVAL ({benchmark.trials.length})
-          </button>
-        </div>
+                <button
+                  type="button"
+                  className={showTune ? 'btn-tab-active' : ''}
+                  onClick={() => setShowTune((v) => !v)}
+                >
+                  <IconSliders size={16} />
+                  Tune
+                </button>
+              </>
+            )}
+          </div>
+        </nav>
       </header>
 
-      {showPairBar && (
-        <div className="pair-bar">
-          <div>
-            <strong>JUDGE / CAREGIVER PHONE URL (SAME HOTSPOT):</strong>{' '}
-            {lanUrls.map((u) => (
-              <a
-                key={u}
-                href={u}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#14b8a6', marginRight: 12 }}
-              >
-                {u}
-              </a>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}>
-              OPEN PHONE WINDOW
-            </button>
-            <button onClick={() => setIsCaregiverScreen(true)}>SWITCH THIS TAB</button>
-          </div>
-        </div>
-      )}
-
-      {showTune && (
-        <div className="tune-drawer">
-          <label className="ctrl-inline">
-            Range Gate:
-            <select
-              value={rangeLockM}
-              onChange={(e) => {
-                const m = parseFloat(e.target.value);
-                setRangeLockM(m);
-                engineRef.current?.setRangeLock(m);
-              }}
-            >
-              <option value={0}>Auto-Track</option>
-              <option value={0.55}>0.55 m</option>
-              <option value={0.85}>0.85 m</option>
-              <option value={1.25}>1.25 m</option>
-              <option value={1.8}>1.80 m</option>
-            </select>
-          </label>
-
-          <label className="ctrl-inline">
-            Fall Trigger ({fallThreshold.toFixed(1)}):
-            <input
-              type="range"
-              min="2.5"
-              max="10"
-              step="0.5"
-              value={fallThreshold}
-              onChange={(e) => setFallThreshold(parseFloat(e.target.value))}
-            />
-          </label>
-
-          <label className="ctrl-inline">
-            Apnea Watch:
-            <select
-              value={apneaLimitSec}
-              onChange={(e) => {
-                stillnessSinceMsRef.current = performance.now();
-                setApneaLimitSec(Number(e.target.value));
-              }}
-            >
-              <option value={0}>Off</option>
-              <option value={12}>12s (Demo)</option>
-              <option value={30}>30s (Cabin)</option>
-              <option value={2700}>45m (Home)</option>
-            </select>
-          </label>
-
-          <label className="ctrl-inline">
-            TX Gain ({Math.round(txGain * 100)}%):
-            <input
-              type="range"
-              min="0.15"
-              max="0.9"
-              step="0.05"
-              value={txGain}
-              onChange={(e) => {
-                const g = parseFloat(e.target.value);
-                setTxGain(g);
-                engineRef.current?.setGain(g);
-              }}
-            />
-          </label>
-
-          <button onClick={() => engineRef.current?.recalibrateDirectPath()}>
-            RE-LOCK DIRECT PATH
-          </button>
-
-          <span className="mono" style={{ fontSize: 10, color: '#566579', marginLeft: 'auto' }}>
-            {sampleRate} Hz · Sarvam Calls: {sarvamCallCount}
-          </span>
-        </div>
-      )}
-
-      <section className="metric-bar">
-        <div className="metric-cell">
-          <span className="readout-k">Room Occupancy</span>
-          <span className="metric-val teal">
-            {!sonarArmed
-              ? '--'
-              : hud.peopleCount === 0
-              ? '0 (EMPTY)'
-              : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${hud.azimuthDeg >= 0 ? '+' : ''}${hud.azimuthDeg.toFixed(0)}°)`}
-          </span>
-        </div>
-        <div className="metric-cell">
-          <span className="readout-k">Chest Phase</span>
-          <span className="metric-val">
-            {sonarArmed ? `${hud.dispMm >= 0 ? '+' : ''}${hud.dispMm.toFixed(2)} mm` : '--'}
-          </span>
-        </div>
-        <div className="metric-cell">
-          <span className="readout-k">Respiration</span>
-          <span className="metric-val teal">
-            {hud.bpm ? `${hud.bpm.toFixed(0)} BPM` : sonarArmed ? 'ACQUIRING' : '--'}
-          </span>
-        </div>
-        <div className="metric-cell">
-          <span className="readout-k">Motion</span>
-          <span className={`metric-val ${hud.motionEnergy >= fallThreshold ? 'amber' : ''}`}>
-            {sonarArmed ? hud.motionEnergy.toFixed(2) : '--'}
-          </span>
-        </div>
-        <div className="metric-cell">
-          <span className="readout-k">Speech (&lt;17.5 kHz)</span>
-          <span className="metric-val red">
-            {guardMode === 'LISTENING_CONSENT'
-              ? `OPEN ${consentRemainingSec.toFixed(0)}s`
-              : 'ZEROED'}
-          </span>
-        </div>
-      </section>
-
-      {activeTab === 'CONSOLE' ? (
-        <main className="console-layout">
-          <div>
-            {viewMode === 'IRONBOW' ? (
-              <SonicIronbowView
-                latestFrameRef={latestFrameRef}
-                frameSeqRef={frameSeqRef}
-                guardMode={guardMode}
-                sonarArmed={sonarArmed}
-                snapshotGetterRef={snapshotGetterRef}
-              />
-            ) : (
-              <SpatialField3D
-                latestFrameRef={latestFrameRef}
-                frameSeqRef={frameSeqRef}
-                guardMode={guardMode}
-                sonarArmed={sonarArmed}
-              />
-            )}
-            <RadarScopes
-              latestFrameRef={latestFrameRef}
-              frameSeqRef={frameSeqRef}
-              guardMode={guardMode}
-              fallThreshold={fallThreshold}
-            />
-          </div>
-          <TriageTimeline
-            guardMode={guardMode}
-            activePromptMl={activePromptMl}
-            liveTranscriptMl={liveTranscriptMl}
-            vadActive={vadActive}
-            consentRemainingSec={consentRemainingSec}
-            voiceRmsDb={voiceRmsDb}
-            incidents={incidents}
-            onReplayAudio={async (b64) => {
-              if (!engineRef.current) return;
-              engineRef.current.setWorkletMode('VOICE_PAUSE');
-              await engineRef.current.playAlertToneAndBase64Audio(b64, false);
-              engineRef.current.setWorkletMode('SONAR_LOCKED');
-            }}
-          />
-        </main>
-      ) : (
-        <BenchmarkPanel
-          summary={benchmark}
+      {activeTab === 'OVERVIEW' ? (
+        <SaasOverview
           sonarArmed={sonarArmed}
-          subscribeFrames={(cb) => {
-            trialSubscriberRef.current = cb;
+          benchmarkTrialsCount={benchmark.trials.length}
+          onOpenConsole={() => {
+            setActiveTab('CONSOLE');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onSummaryUpdated={setBenchmark}
+          onArmAndOpenConsole={armAndOpenConsole}
+          onOpenCaregiver={() => {
+            setIsCaregiverScreen(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenBenchmark={() => {
+            setActiveTab('BENCHMARK');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
+      ) : (
+        <div className="shell">
+          {showPairBar && (
+            <div className="pair-bar">
+              <div>
+                <strong>Caregiver phone link (same Wi-Fi hotspot):</strong>{' '}
+                {lanUrls.map((u) => (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mono"
+                    style={{
+                      color: 'var(--blue)',
+                      fontWeight: 600,
+                      marginLeft: 8,
+                      marginRight: 12,
+                      textDecorationThickness: '2px',
+                    }}
+                  >
+                    {u}
+                  </a>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}
+                >
+                  Open phone window
+                </button>
+                <button type="button" onClick={() => setIsCaregiverScreen(true)}>
+                  Switch this tab
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showTune && (
+            <div className="tune-drawer">
+              <label className="ctrl-inline">
+                Range gate:
+                <select
+                  value={rangeLockM}
+                  onChange={(e) => {
+                    const m = parseFloat(e.target.value);
+                    setRangeLockM(m);
+                    engineRef.current?.setRangeLock(m);
+                  }}
+                >
+                  <option value={0}>Auto-track (0.32–3.0m)</option>
+                  <option value={0.55}>0.55 m</option>
+                  <option value={0.85}>0.85 m</option>
+                  <option value={1.25}>1.25 m</option>
+                  <option value={1.8}>1.80 m</option>
+                </select>
+              </label>
+
+              <label className="ctrl-inline">
+                Fall threshold ({fallThreshold.toFixed(1)}):
+                <input
+                  type="range"
+                  min="2.5"
+                  max="10"
+                  step="0.5"
+                  value={fallThreshold}
+                  onChange={(e) => setFallThreshold(parseFloat(e.target.value))}
+                />
+              </label>
+
+              <label className="ctrl-inline">
+                Apnea watch:
+                <select
+                  value={apneaLimitSec}
+                  onChange={(e) => {
+                    stillnessSinceMsRef.current = performance.now();
+                    setApneaLimitSec(Number(e.target.value));
+                  }}
+                >
+                  <option value={0}>Off</option>
+                  <option value={12}>12s (Demo)</option>
+                  <option value={30}>30s (Cabin)</option>
+                  <option value={2700}>45m (Home)</option>
+                </select>
+              </label>
+
+              <label className="ctrl-inline">
+                Speaker gain ({Math.round(txGain * 100)}%):
+                <input
+                  type="range"
+                  min="0.15"
+                  max="0.9"
+                  step="0.05"
+                  value={txGain}
+                  onChange={(e) => {
+                    const g = parseFloat(e.target.value);
+                    setTxGain(g);
+                    engineRef.current?.setGain(g);
+                  }}
+                />
+              </label>
+
+              <button type="button" onClick={() => engineRef.current?.recalibrateDirectPath()}>
+                Re-lock direct path
+              </button>
+
+              <span
+                className="mono"
+                style={{ fontSize: 11.5, color: 'var(--muted)', marginLeft: 'auto' }}
+              >
+                {sampleRate} Hz · Sarvam calls: {sarvamCallCount}
+              </span>
+            </div>
+          )}
+
+          <section className="metric-bar" aria-label="Live room telemetry">
+            <div className="metric-cell">
+              <span className="readout-k">Room occupancy</span>
+              <span className="metric-val teal">
+                {!sonarArmed
+                  ? '--'
+                  : hud.peopleCount === 0
+                  ? '0 (Empty)'
+                  : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${
+                      hud.azimuthDeg >= 0 ? '+' : ''
+                    }${hud.azimuthDeg.toFixed(0)}°)`}
+              </span>
+            </div>
+            <div className="metric-cell">
+              <span className="readout-k">Chest phase</span>
+              <span className="metric-val">
+                {sonarArmed ? `${hud.dispMm >= 0 ? '+' : ''}${hud.dispMm.toFixed(2)} mm` : '--'}
+              </span>
+            </div>
+            <div className="metric-cell">
+              <span className="readout-k">Respiration</span>
+              <span className="metric-val teal">
+                {hud.bpm ? `${hud.bpm.toFixed(0)} BPM` : sonarArmed ? 'Acquiring' : '--'}
+              </span>
+            </div>
+            <div className="metric-cell">
+              <span className="readout-k">Motion impulse</span>
+              <span className={`metric-val ${hud.motionEnergy >= fallThreshold ? 'amber' : ''}`}>
+                {sonarArmed ? hud.motionEnergy.toFixed(2) : '--'}
+              </span>
+            </div>
+            <div className="metric-cell">
+              <span className="readout-k">Speech (&lt;17.5 kHz)</span>
+              <span className="metric-val red">
+                {guardMode === 'LISTENING_CONSENT'
+                  ? `Open ${consentRemainingSec.toFixed(0)}s`
+                  : 'Zeroed'}
+              </span>
+            </div>
+          </section>
+
+          {activeTab === 'CONSOLE' ? (
+            <main className="console-layout">
+              <div>
+                {viewMode === 'IRONBOW' ? (
+                  <SonicIronbowView
+                    latestFrameRef={latestFrameRef}
+                    frameSeqRef={frameSeqRef}
+                    guardMode={guardMode}
+                    sonarArmed={sonarArmed}
+                    snapshotGetterRef={snapshotGetterRef}
+                    onSwitchTo3D={() => setViewMode('SONAR3D')}
+                    onRequestArm={armSonar}
+                  />
+                ) : (
+                  <SpatialField3D
+                    latestFrameRef={latestFrameRef}
+                    frameSeqRef={frameSeqRef}
+                    guardMode={guardMode}
+                    sonarArmed={sonarArmed}
+                    onSwitchToIronbow={() => setViewMode('IRONBOW')}
+                    onRequestArm={armSonar}
+                  />
+                )}
+                <RadarScopes
+                  latestFrameRef={latestFrameRef}
+                  frameSeqRef={frameSeqRef}
+                  guardMode={guardMode}
+                  fallThreshold={fallThreshold}
+                />
+              </div>
+              <TriageTimeline
+                guardMode={guardMode}
+                activePromptMl={activePromptMl}
+                liveTranscriptMl={liveTranscriptMl}
+                vadActive={vadActive}
+                consentRemainingSec={consentRemainingSec}
+                voiceRmsDb={voiceRmsDb}
+                incidents={incidents}
+                onReplayAudio={async (b64) => {
+                  if (!engineRef.current) return;
+                  engineRef.current.setWorkletMode('VOICE_PAUSE');
+                  await engineRef.current.playAlertToneAndBase64Audio(b64, false);
+                  engineRef.current.setWorkletMode('SONAR_LOCKED');
+                }}
+              />
+            </main>
+          ) : (
+            <BenchmarkPanel
+              summary={benchmark}
+              sonarArmed={sonarArmed}
+              onRequestArm={armSonar}
+              subscribeFrames={(cb) => {
+                trialSubscriberRef.current = cb;
+              }}
+              onSummaryUpdated={setBenchmark}
+            />
+          )}
+        </div>
       )}
     </div>
   );

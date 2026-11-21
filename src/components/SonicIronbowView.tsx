@@ -7,6 +7,8 @@ interface Props {
   guardMode: GuardMode;
   sonarArmed: boolean;
   snapshotGetterRef?: React.MutableRefObject<(() => string | undefined) | null>;
+  onSwitchTo3D?: () => void;
+  onRequestArm?: () => void;
 }
 
 const GRID_W = 360;
@@ -121,6 +123,8 @@ export const SonicIronbowView: React.FC<Props> = ({
   guardMode,
   sonarArmed,
   snapshotGetterRef,
+  onSwitchTo3D,
+  onRequestArm,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [headerInfo, setHeaderInfo] = useState({
@@ -359,13 +363,14 @@ export const SonicIronbowView: React.FC<Props> = ({
       });
 
       if (!armed) {
-        ctx.fillStyle = 'rgba(8, 4, 20, 0.78)';
-        ctx.fillRect(W * 0.5 - 225, H * 0.5 - 22, 450, 40);
-        ctx.strokeStyle = '#74176e';
-        ctx.strokeRect(W * 0.5 - 225, H * 0.5 - 22, 450, 40);
-        ctx.fillStyle = '#fcffa4';
-        ctx.font = '600 12px "IBM Plex Mono", monospace';
-        ctx.fillText('CLICK [ARM SONAR] — OS-CFAR MULTI-PERSON SONIC IMAGER', W * 0.5 - 206, H * 0.5 + 3);
+        ctx.fillStyle = 'rgba(22, 18, 28, 0.88)';
+        ctx.fillRect(W * 0.5 - 235, H * 0.5 - 23, 470, 42);
+        ctx.strokeStyle = '#ffe24d';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(W * 0.5 - 235, H * 0.5 - 23, 470, 42);
+        ctx.fillStyle = '#ffe24d';
+        ctx.font = '500 12.5px "DM Mono", monospace';
+        ctx.fillText('Click to arm sonar · OS-CFAR multi-person acoustic imager', W * 0.5 - 214, H * 0.5 + 3);
       }
 
       drawColorbar(ctx, W, H);
@@ -377,22 +382,42 @@ export const SonicIronbowView: React.FC<Props> = ({
   }, [latestFrameRef, frameSeqRef]);
 
   return (
-    <div className="panel spatial-panel">
+    <div className="panel night-panel spatial-panel">
       <div className="panel-head">
-        <span className="panel-title">Sonic Ironbow Imager (OS-CFAR Multi-Person Ultrasound)</span>
-        <span className="panel-meta">
-          CAMERA: OFF · {headerInfo.summary}
-        </span>
+        <div>
+          <span className="panel-title">Sonic Ironbow imager</span>
+          <span className="panel-meta" style={{ marginLeft: 10 }}>
+            Camera: 0 px · {headerInfo.summary}
+          </span>
+        </div>
+        {onSwitchTo3D && (
+          <button
+            type="button"
+            onClick={onSwitchTo3D}
+            style={{ minHeight: 30, padding: '4px 12px', fontSize: 12.5 }}
+          >
+            Switch to 3D sonar
+          </button>
+        )}
       </div>
 
-      <canvas ref={canvasRef} className="ironbow-canvas" width={960} height={500} />
+      <canvas
+        ref={canvasRef}
+        className="ironbow-canvas"
+        width={960}
+        height={500}
+        onClick={() => {
+          if (!sonarArmed) onRequestArm?.();
+        }}
+        style={{ cursor: sonarArmed ? 'default' : 'pointer' }}
+      />
 
       <div className="primitives-bar">
         <span className={`prim-pill ${headerInfo.count > 0 ? 'prim-active' : 'prim-dim'}`}>
-          {headerInfo.count > 0 ? `${headerInfo.count} HUMAN TARGET(S) LOCKED` : 'CABIN EMPTY'}
+          {headerInfo.count > 0 ? `${headerInfo.count} human target(s) locked` : 'Cabin empty'}
         </span>
         <span className="honesty-tag">
-          0.6s Micro-Doppler + OS-CFAR (Detects seated &amp; moving people without empty-room reset)
+          0.6s micro-Doppler + OS-CFAR · Detects seated &amp; moving people
         </span>
       </div>
     </div>
@@ -416,7 +441,7 @@ function drawRoomPerspectiveGuides(
   ctx.stroke();
 
   ctx.fillStyle = 'rgba(195, 145, 220, 0.55)';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.font = '10px "DM Mono", monospace';
   for (const m of [0.5, 1.0, 1.5, 2.0, 2.5]) {
     const rNorm = (m - 0.32) / 2.68;
     const y = h - rNorm * (h - hy);
@@ -442,11 +467,11 @@ function drawReticle(
   const c = 12;
   ctx.strokeStyle =
     mode === 'EMERGENCY_DISPATCHED' || mode === 'LISTENING_CONSENT'
-      ? '#e11d48'
+      ? '#ff6fb1'
       : mode === 'ANOMALY_PREALERT'
-      ? '#f59e0b'
-      : 'rgba(253, 255, 182, 0.82)';
-  ctx.lineWidth = 1.6;
+      ? '#ffe24d'
+      : 'rgba(253, 255, 182, 0.88)';
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
   ctx.moveTo(x, y + c); ctx.lineTo(x, y); ctx.lineTo(x + c, y);
   ctx.moveTo(x + w - c, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + c);
@@ -456,16 +481,16 @@ function drawReticle(
 }
 
 function drawCallout(ctx: CanvasRenderingContext2D, cx: number, y: number, text: string) {
-  ctx.font = '600 11px "IBM Plex Mono", monospace';
+  ctx.font = '500 11px "DM Mono", monospace';
   const tw = ctx.measureText(text).width;
   const bw = tw + 16;
   const bh = 21;
-  ctx.fillStyle = 'rgba(10, 4, 24, 0.88)';
+  ctx.fillStyle = 'rgba(22, 18, 28, 0.92)';
   ctx.fillRect(cx - bw * 0.5, y - bh, bw, bh);
-  ctx.strokeStyle = '#fcd030';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#ffe24d';
+  ctx.lineWidth = 1.2;
   ctx.strokeRect(cx - bw * 0.5, y - bh, bw, bh);
-  ctx.fillStyle = '#fdffb6';
+  ctx.fillStyle = '#fff4c1';
   ctx.fillText(text, cx - tw * 0.5, y - 6);
 }
 
@@ -481,9 +506,9 @@ function drawColorbar(ctx: CanvasRenderingContext2D, w: number, h: number) {
   }
   ctx.strokeStyle = 'rgba(255,255,255,0.22)';
   ctx.strokeRect(barX, barY, 10, barH);
-  ctx.fillStyle = '#fcffa4';
-  ctx.font = '9px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#fff4c1';
+  ctx.font = '9px "DM Mono", monospace';
   ctx.fillText('+25dB', barX - 14, barY - 4);
-  ctx.fillStyle = '#9a78c2';
+  ctx.fillStyle = '#b9a2ff';
   ctx.fillText('CFAR', barX - 12, barY + barH + 11);
 }

@@ -31,46 +31,61 @@ export const TriageTimeline: React.FC<Props> = ({
     <div className="triage-stack">
       <div className="panel">
         <div className="panel-head">
-          <span className="panel-title">Consent-Gated Malayalam Check-In</span>
+          <span className="panel-title">Malayalam voice check-in</span>
           <span className="panel-meta">
-            {inCheckin ? 'GATE OPEN (VERIFICATION)' : 'GATE LOCKED (>17.5 kHz ONLY)'}
+            {inCheckin ? 'Gate open (9.5s consent)' : 'Locked (>17.5 kHz only)'}
           </span>
         </div>
 
         <div className="live-dialogue">
           <div className="dialogue-row">
-            <div className="dialogue-label">Bulbul v3 Prompt</div>
-            <div className="ml" style={{ color: activePromptMl ? '#e8eef5' : '#566579' }}>
-              {activePromptMl || 'Idle — triggers only on physical fall or apnea.'}
+            <div className="dialogue-label">Bulbul v3 prompt (ml-IN)</div>
+            <div
+              className="ml"
+              style={{
+                color: activePromptMl ? 'var(--ink)' : 'var(--muted)',
+                fontWeight: activePromptMl ? 600 : 400,
+              }}
+            >
+              {activePromptMl || 'Idle — triggers only on physical fall + stillness or apnea.'}
             </div>
           </div>
 
-          <div className="dialogue-row" style={{ borderTop: '1px solid #1e2836', paddingTop: 8 }}>
-            <div className="dialogue-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div
+            className="dialogue-row"
+            style={{
+              borderTop: '1.5px dashed rgba(22, 18, 28, 0.22)',
+              paddingTop: 10,
+            }}
+          >
+            <div
+              className="dialogue-label"
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}
+            >
               <span>
-                Saaras v4 Stream{' '}
+                Saaras v4 stream{' '}
                 {guardMode === 'LISTENING_CONSENT'
                   ? vadActive
-                    ? '[VAD ACTIVE]'
-                    : `[${consentRemainingSec.toFixed(1)}s · ${voiceRmsDb.toFixed(0)} dBFS]`
+                    ? '· VAD active'
+                    : `· ${consentRemainingSec.toFixed(1)}s (${voiceRmsDb.toFixed(0)} dBFS)`
                   : ''}
               </span>
               {guardMode === 'TRIAGING_RESPONSE' && (
-                <span style={{ color: '#f59e0b' }}>TRIAGING...</span>
+                <span style={{ color: 'var(--blue)', fontWeight: 700 }}>Triaging...</span>
               )}
             </div>
             <div
               className="ml"
               style={{
                 minHeight: 22,
-                color: liveTranscriptMl ? '#14b8a6' : '#566579',
-                fontWeight: liveTranscriptMl ? 500 : 400,
+                color: liveTranscriptMl ? 'var(--blue)' : 'var(--muted)',
+                fontWeight: liveTranscriptMl ? 700 : 400,
               }}
             >
               {liveTranscriptMl ||
                 (guardMode === 'LISTENING_CONSENT'
                   ? 'മലയാളത്തിൽ മറുപടി പറയൂ...'
-                  : 'Locked (<17.5 kHz speech discarded).')}
+                  : 'Speech firewall locked (<17.5 kHz zeroed).')}
             </div>
           </div>
         </div>
@@ -78,13 +93,13 @@ export const TriageTimeline: React.FC<Props> = ({
 
       <div className="panel">
         <div className="panel-head">
-          <span className="panel-title">Caregiver Dispatch</span>
-          <span className="panel-meta">{incidents.length}</span>
+          <span className="panel-title">Caregiver dispatch &amp; model trace</span>
+          <span className="panel-meta">{incidents.length} logged</span>
         </div>
 
         {incidents.length === 0 ? (
-          <div className="mono" style={{ color: '#566579', fontSize: 11, padding: '6px 2px' }}>
-            No events logged.
+          <div className="mono" style={{ color: 'var(--muted)', fontSize: 12, padding: '6px 2px' }}>
+            No check-ins logged yet. Simulate a slump + 4s stillness or click Voice check-in above.
           </div>
         ) : (
           incidents.slice(0, 4).map((inc) => (
@@ -94,39 +109,46 @@ export const TriageTimeline: React.FC<Props> = ({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 6,
+                  marginBottom: 8,
                 }}
               >
-                <span className={`badge ${inc.classification}`}>{inc.classification}</span>
-                <span className="mono" style={{ fontSize: 10, color: '#8a99ad' }}>
-                  {new Date(inc.timestampIso).toLocaleTimeString()} | {inc.distanceMeters.toFixed(2)}m
+                <span className={`badge ${inc.classification}`}>
+                  {inc.classification === 'SAFE' ? 'Safe · Local only' : inc.classification}
+                </span>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {new Date(inc.timestampIso).toLocaleTimeString()} ·{' '}
+                  {inc.distanceMeters.toFixed(2)}m
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 5 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 6 }}>
                 {inc.snapshotDataUrl && (
                   <img
                     src={inc.snapshotDataUrl}
-                    alt="Anonymized Ironbow Posture"
+                    alt="Anonymized Sonic Ironbow silhouette"
                     style={{
-                      width: 88,
-                      height: 50,
-                      border: '1px solid #2d3b4e',
+                      width: 92,
+                      height: 52,
+                      border: '2px solid var(--ink)',
+                      borderRadius: 8,
                       flexShrink: 0,
                     }}
                   />
                 )}
-                <div style={{ fontSize: 12, fontWeight: 500 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>
                   {inc.clinicalSummaryEn}
                 </div>
               </div>
 
               {inc.transcriptMl && (
-                <div className="mono" style={{ fontSize: 11, color: '#8a99ad', marginBottom: 4 }}>
-                  <span className="ml" style={{ color: '#e8eef5' }}>
-                    "{inc.transcriptMl}"
+                <div
+                  className="mono"
+                  style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 }}
+                >
+                  <span className="ml" style={{ color: 'var(--ink)', fontWeight: 600 }}>
+                    &ldquo;{inc.transcriptMl}&rdquo;
                   </span>{' '}
-                  → "{inc.transcriptEn}"
+                  → &ldquo;{inc.transcriptEn}&rdquo;
                 </div>
               )}
 
@@ -136,17 +158,24 @@ export const TriageTimeline: React.FC<Props> = ({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   gap: 8,
-                  marginTop: 6,
-                  paddingTop: 6,
-                  borderTop: '1px solid #1e2836',
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1.5px dashed rgba(22, 18, 28, 0.22)',
                 }}
               >
-                <span className="ml" style={{ fontSize: 11, color: '#14b8a6' }}>
-                  Kaaval: "{inc.replyMl}"
+                <span
+                  className="ml"
+                  style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 600 }}
+                >
+                  Kaaval: &ldquo;{inc.replyMl}&rdquo;
                 </span>
                 {inc.replyAudioBase64 && (
-                  <button onClick={() => onReplayAudio(inc.replyAudioBase64!)}>
-                    REPLAY TTS
+                  <button
+                    type="button"
+                    onClick={() => onReplayAudio(inc.replyAudioBase64!)}
+                    style={{ minHeight: 30, padding: '4px 12px', fontSize: 12 }}
+                  >
+                    Replay audio
                   </button>
                 )}
               </div>
@@ -154,17 +183,17 @@ export const TriageTimeline: React.FC<Props> = ({
               <table className="trace-table">
                 <thead>
                   <tr>
-                    <th>Sarvam Model</th>
+                    <th>Sarvam model</th>
                     <th>Latency</th>
-                    <th>Step Output</th>
+                    <th>Step output</th>
                   </tr>
                 </thead>
                 <tbody>
                   {inc.sarvamTraces.map((tr, idx) => (
                     <tr key={idx}>
-                      <td style={{ color: '#e8eef5' }}>{tr.model}</td>
-                      <td style={{ color: '#14b8a6' }}>{tr.latencyMs} ms</td>
-                      <td style={{ color: '#8a99ad' }}>{tr.detail}</td>
+                      <td style={{ color: 'var(--ink)', fontWeight: 500 }}>{tr.model}</td>
+                      <td style={{ color: 'var(--blue)', fontWeight: 500 }}>{tr.latencyMs} ms</td>
+                      <td style={{ color: 'var(--muted)' }}>{tr.detail}</td>
                     </tr>
                   ))}
                 </tbody>

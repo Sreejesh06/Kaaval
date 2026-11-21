@@ -6,6 +6,8 @@ interface Props {
   frameSeqRef: React.MutableRefObject<number>;
   guardMode: GuardMode;
   sonarArmed: boolean;
+  onSwitchToIronbow?: () => void;
+  onRequestArm?: () => void;
 }
 
 interface Vec3 {
@@ -36,6 +38,8 @@ export const SpatialField3D: React.FC<Props> = ({
   frameSeqRef,
   guardMode,
   sonarArmed,
+  onSwitchToIronbow,
+  onRequestArm,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [primitives, setPrimitives] = useState<SemanticPrimitive[]>(['EMPTY_BASELINE']);
@@ -210,14 +214,25 @@ export const SpatialField3D: React.FC<Props> = ({
   };
 
   return (
-    <div className="panel spatial-panel">
+    <div className="panel night-panel spatial-panel">
       <div className="panel-head">
-        <span className="panel-title">Spatial Acoustic Field</span>
-        <span className="panel-meta">
-          X {coords.x >= 0 ? '+' : ''}
-          {coords.x.toFixed(2)}m · Z {coords.z.toFixed(2)}m · {coords.az >= 0 ? '+' : ''}
-          {coords.az.toFixed(0)}° · {coords.stereo ? 'STEREO L/R' : 'MONO'} · DRAG TO ORBIT
-        </span>
+        <div>
+          <span className="panel-title">3D spatial acoustic field</span>
+          <span className="panel-meta" style={{ marginLeft: 10 }}>
+            X {coords.x >= 0 ? '+' : ''}
+            {coords.x.toFixed(2)}m · Z {coords.z.toFixed(2)}m · {coords.az >= 0 ? '+' : ''}
+            {coords.az.toFixed(0)}° · {coords.stereo ? 'Stereo L/R' : 'Mono'} · Drag to orbit
+          </span>
+        </div>
+        {onSwitchToIronbow && (
+          <button
+            type="button"
+            onClick={onSwitchToIronbow}
+            style={{ minHeight: 30, padding: '4px 12px', fontSize: 12.5 }}
+          >
+            Switch to Sonic Ironbow
+          </button>
+        )}
       </div>
 
       <canvas
@@ -228,6 +243,9 @@ export const SpatialField3D: React.FC<Props> = ({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onClick={() => {
+          if (!sonarArmed) onRequestArm?.();
+        }}
       />
 
       <div className="primitives-bar">
@@ -247,7 +265,7 @@ export const SpatialField3D: React.FC<Props> = ({
             </span>
           ))}
         </div>
-        <span className="honesty-tag">0.48–3.0m Range · Stereo FDMA · 0 px Camera</span>
+        <span className="honesty-tag">0.32–3.0m range · Stereo FDMA · 0 px camera</span>
       </div>
     </div>
   );
@@ -314,8 +332,8 @@ function renderObservatory(
 
   // 2. Polar Sonar Sector Arcs (0.5m .. 3.0m opening forward from bottom foreground)
   ctx.strokeStyle = '#1b293b';
-  ctx.fillStyle = '#5d6f86';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#9aa8bc';
+  ctx.font = '10px "DM Mono", monospace';
   for (const r of [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]) {
     ctx.beginPath();
     for (let deg = -52; deg <= 52; deg += 4) {
@@ -505,23 +523,23 @@ function renderObservatory(
       }
     });
   } else if (!armed) {
-    ctx.fillStyle = '#566579';
-    ctx.font = '12px "IBM Plex Mono", monospace';
-    ctx.fillText('CLICK [ARM SONAR] TO START 3D SPATIAL FIELD', w * 0.5 - 165, h * 0.48);
+    ctx.fillStyle = '#ffe24d';
+    ctx.font = '500 12.5px "DM Mono", monospace';
+    ctx.fillText('Click to arm sonar · 3D stereo FDMA acoustic field', w * 0.5 - 180, h * 0.48);
   }
 
   // 7. Foreground MacBook Stereo Emitter Bar anchored cleanly at bottom center (z = 0m)
   const txL = project({ x: -0.14, y: 0.02, z: 0.06 }, w, h);
   const txR = project({ x: 0.14, y: 0.02, z: 0.06 }, w, h);
-  ctx.strokeStyle = '#14b8a6';
+  ctx.strokeStyle = '#3ed598';
   ctx.lineWidth = 3.5;
   ctx.beginPath();
   ctx.moveTo(txL.x, txL.y);
   ctx.lineTo(txR.x, txR.y);
   ctx.stroke();
 
-  ctx.fillStyle = '#8a99ad';
-  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#cbbce0';
+  ctx.font = '10px "DM Mono", monospace';
   ctx.fillText('TX-L 17.6–18.8k', txL.x - 102, txL.y + 4);
   ctx.fillText('TX-R 19.0–20.2k', txR.x + 10, txR.y + 4);
 }
@@ -571,7 +589,7 @@ function drawCalloutPill(
   text: string,
   borderColor: string
 ) {
-  ctx.font = '600 11px "IBM Plex Mono", monospace';
+  ctx.font = '500 11px "DM Mono", monospace';
   const tw = ctx.measureText(text).width;
   const padX = 8;
   const boxW = tw + padX * 2;
@@ -579,12 +597,12 @@ function drawCalloutPill(
   const x0 = cx - boxW * 0.5;
   const y0 = Math.max(8, cy - boxH);
 
-  ctx.fillStyle = 'rgba(8, 11, 16, 0.88)';
+  ctx.fillStyle = 'rgba(22, 18, 28, 0.92)';
   ctx.fillRect(x0, y0, boxW, boxH);
   ctx.strokeStyle = borderColor;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.2;
   ctx.strokeRect(x0, y0, boxW, boxH);
 
-  ctx.fillStyle = '#e8eef5';
+  ctx.fillStyle = '#fff4c1';
   ctx.fillText(text, x0 + padX, y0 + 14);
 }
