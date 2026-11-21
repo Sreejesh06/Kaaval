@@ -367,7 +367,7 @@ function drawConsentGateOverlay(canvas: HTMLCanvasElement | null, mode: GuardMod
   ctx.fillStyle = '#8a99ad';
   ctx.font = '11px "IBM Plex Mono", monospace';
   ctx.fillText(
-    'Speech firewall automatically re-locks (<18 kHz zeroed) once check-in completes.',
+    'Speech firewall automatically re-locks (<17.5 kHz zeroed) once check-in completes.',
     22,
     h / 2 + 16
   );

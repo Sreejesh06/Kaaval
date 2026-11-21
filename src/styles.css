@@ -389,11 +389,52 @@ canvas.spatial-canvas {
 
 canvas.ironbow-canvas {
   width: 100%;
-  height: 390px;
+  aspect-ratio: 16 / 9;
+  max-height: 410px;
   display: block;
   background: #04020c;
   border: 1px solid #1b1530;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.caregiver-shell {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px 14px 32px;
+}
+
+.cg-alert-banner {
+  background: var(--vermilion-dim);
+  border: 1px solid var(--vermilion);
+  border-left: 4px solid var(--vermilion);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.cg-input {
+  flex: 1;
+  min-width: 210px;
+  background: #080b10;
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.pair-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--phosphor);
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 canvas.spatial-canvas:active {

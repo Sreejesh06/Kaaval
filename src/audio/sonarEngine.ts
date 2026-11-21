@@ -26,6 +26,12 @@ export class KaavalSonarEngine {
     sampleRate: number;
     echoCancellation: boolean;
   }> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error(
+        'Microphone API requires http://localhost or HTTPS (use /caregiver on LAN phones).'
+      );
+    }
+
     if (this.audioCtx) {
       await this.audioCtx.resume();
       return { sampleRate: this.audioCtx.sampleRate, echoCancellation: false };
@@ -44,12 +50,16 @@ export class KaavalSonarEngine {
     this.audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     await this.audioCtx.audioWorklet.addModule('/sonar-worklet.js');
 
+    const stereoCapable = this.audioCtx.destination.maxChannelCount >= 2;
     const micSource = this.audioCtx.createMediaStreamSource(this.stream);
     this.workletNode = new AudioWorkletNode(this.audioCtx, 'kaaval-dual-worklet', {
       numberOfInputs: 1,
       numberOfOutputs: 1,
-      outputChannelCount: [2],
-      processorOptions: { sampleRate: this.audioCtx.sampleRate },
+      outputChannelCount: [stereoCapable ? 2 : 1],
+      processorOptions: {
+        sampleRate: this.audioCtx.sampleRate,
+        stereoCapable,
+      },
     });
 
     this.workletNode.port.postMessage({
@@ -191,7 +201,8 @@ export class KaavalSonarEngine {
         this.pcmForwarder = null;
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'finish_window' }));
-          window.setTimeout(finish, 1100);
+          // Allow up to 4.2s for server-side Saaras v3 WAV fallback on slow 4G
+          window.setTimeout(finish, 4200);
         } else {
           finish();
         }

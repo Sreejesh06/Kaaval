@@ -7,6 +7,7 @@ interface Props {
   frameSeqRef: React.MutableRefObject<number>;
   guardMode: GuardMode;
   sonarArmed: boolean;
+  snapshotGetterRef?: React.MutableRefObject<(() => string | undefined) | null>;
   onVisualFallDetected?: () => void;
 }
 
@@ -60,6 +61,7 @@ export const IronbowSensorView: React.FC<Props> = ({
   frameSeqRef,
   guardMode,
   sonarArmed,
+  snapshotGetterRef,
   onVisualFallDetected,
 }) => {
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -73,6 +75,24 @@ export const IronbowSensorView: React.FC<Props> = ({
   armedRef.current = sonarArmed;
   const fallCbRef = useRef(onVisualFallDetected);
   fallCbRef.current = onVisualFallDetected;
+
+  useEffect(() => {
+    if (!snapshotGetterRef) return;
+    snapshotGetterRef.current = () => {
+      const src = displayCanvasRef.current;
+      if (!src) return undefined;
+      const thumb = document.createElement('canvas');
+      thumb.width = 192;
+      thumb.height = 108;
+      const tCtx = thumb.getContext('2d');
+      if (!tCtx) return undefined;
+      tCtx.drawImage(src, 0, 0, 192, 108);
+      return thumb.toDataURL('image/jpeg', 0.68);
+    };
+    return () => {
+      snapshotGetterRef.current = null;
+    };
+  }, [snapshotGetterRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +123,7 @@ export const IronbowSensorView: React.FC<Props> = ({
     const smoothedMask = new Float32Array(PIXELS);
 
     let lastVideoTime = -1;
+    let lastSegMs = -1;
     let lastRadarSeq = -1;
     let sonarDistM = 0.9;
     let sonarAzDeg = 0;
@@ -131,8 +152,9 @@ export const IronbowSensorView: React.FC<Props> = ({
         await video.play();
 
         const vision = await FilesetResolver.forVisionTasks('/mediapipe/wasm');
+        let createdSeg: ImageSegmenter;
         try {
-          segmenter = await ImageSegmenter.createFromOptions(vision, {
+          createdSeg = await ImageSegmenter.createFromOptions(vision, {
             baseOptions: {
               modelAssetPath: '/mediapipe/selfie_segmenter_landscape.tflite',
               delegate: 'GPU',
@@ -142,7 +164,7 @@ export const IronbowSensorView: React.FC<Props> = ({
             outputConfidenceMasks: true,
           });
         } catch {
-          segmenter = await ImageSegmenter.createFromOptions(vision, {
+          createdSeg = await ImageSegmenter.createFromOptions(vision, {
             baseOptions: {
               modelAssetPath: '/mediapipe/selfie_segmenter_landscape.tflite',
               delegate: 'CPU',
@@ -153,9 +175,12 @@ export const IronbowSensorView: React.FC<Props> = ({
           });
         }
 
-        if (!cancelled) {
-          setSensorStatus('ON-DEVICE PRIVACY SILHOUETTE + 20 kHz FMCW FUSION');
+        if (cancelled) {
+          createdSeg.close();
+          return;
         }
+        segmenter = createdSeg;
+        setSensorStatus('ON-DEVICE PRIVACY SILHOUETTE + 20 kHz FMCW FUSION');
       } catch {
         if (!cancelled) {
           setSensorStatus('OPTICAL UNAVAILABLE — PURE 20 kHz ULTRASONIC IRONBOW');
@@ -213,32 +238,36 @@ export const IronbowSensorView: React.FC<Props> = ({
         const meanLuma = sumLuma / PIXELS;
         isOccludedOrDark = meanLuma < 0.045; // Pitch-dark room or thumb/tape over lens!
 
-        if (!isOccludedOrDark && segmenter) {
-          segmenter.segmentForVideo(offscreen, nowMs, (res) => {
-            const masks = res.confidenceMasks;
-            if (!masks || masks.length === 0) return;
-            // Pick selfie/person channel (index 0 on 1-output selfie_segmenter, or index 1 if [bg, person])
-            const personMaskObj = masks.length > 1 ? masks[1] : masks[0];
-            const raw = personMaskObj.getAsFloat32Array();
-            const mw = personMaskObj.width;
-            const mh = personMaskObj.height;
+        if (!isOccludedOrDark && segmenter && nowMs > lastSegMs) {
+          lastSegMs = nowMs;
+          try {
+            segmenter.segmentForVideo(offscreen, nowMs, (res) => {
+              const masks = res.confidenceMasks;
+              if (!masks || masks.length === 0) return;
+              const personMaskObj = masks.length > 1 ? masks[1] : masks[0];
+              const raw = personMaskObj.getAsFloat32Array();
+              const mw = personMaskObj.width;
+              const mh = personMaskObj.height;
 
-            if (mw === PROC_W && mh === PROC_H) {
-              for (let i = 0; i < PIXELS; i++) {
-                smoothedMask[i] = 0.4 * smoothedMask[i] + 0.6 * raw[i];
-              }
-            } else {
-              for (let y = 0; y < PROC_H; y++) {
-                const sy = Math.min(mh - 1, Math.floor((y * mh) / PROC_H)) * mw;
-                const dstRow = y * PROC_W;
-                for (let x = 0; x < PROC_W; x++) {
-                  const sx = Math.min(mw - 1, Math.floor((x * mw) / PROC_W));
-                  const i = dstRow + x;
-                  smoothedMask[i] = 0.4 * smoothedMask[i] + 0.6 * raw[sy + sx];
+              if (mw === PROC_W && mh === PROC_H) {
+                for (let i = 0; i < PIXELS; i++) {
+                  smoothedMask[i] = 0.4 * smoothedMask[i] + 0.6 * raw[i];
+                }
+              } else {
+                for (let y = 0; y < PROC_H; y++) {
+                  const sy = Math.min(mh - 1, Math.floor((y * mh) / PROC_H)) * mw;
+                  const dstRow = y * PROC_W;
+                  for (let x = 0; x < PROC_W; x++) {
+                    const sx = Math.min(mw - 1, Math.floor((x * mw) / PROC_W));
+                    const i = dstRow + x;
+                    smoothedMask[i] = 0.4 * smoothedMask[i] + 0.6 * raw[sy + sx];
+                  }
                 }
               }
-            }
-          });
+            });
+          } catch {
+            // Skip duplicate timestamp frame safely without halting rAF
+          }
         }
 
         if (!isOccludedOrDark) {
@@ -440,7 +469,7 @@ export const IronbowSensorView: React.FC<Props> = ({
         ref={displayCanvasRef}
         className="ironbow-canvas"
         width={960}
-        height={420}
+        height={540}
       />
 
       <div className="primitives-bar">

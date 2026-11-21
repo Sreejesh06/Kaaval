@@ -12,6 +12,7 @@ import { IronbowSensorView } from './IronbowSensorView';
 import { SpatialField3D } from './SpatialField3D';
 import { TriageTimeline } from './TriageTimeline';
 import { BenchmarkPanel } from './BenchmarkPanel';
+import { CaregiverView } from './CaregiverView';
 
 const EMPTY_BENCHMARK: BenchmarkSummary = {
   trials: [],
@@ -27,12 +28,20 @@ const EMPTY_BENCHMARK: BenchmarkSummary = {
 };
 
 export const App: React.FC = () => {
+  const initialCaregiverRoute =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/caregiver') ||
+      new URLSearchParams(window.location.search).get('view') === 'caregiver');
+
+  const [isCaregiverScreen, setIsCaregiverScreen] = useState<boolean>(initialCaregiverRoute);
   const [guardMode, setGuardMode] = useState<GuardMode>('OFFLINE');
   const [activeTab, setActiveTab] = useState<'CONSOLE' | 'BENCHMARK'>('CONSOLE');
   const [viewMode, setViewMode] = useState<'IRONBOW' | 'SONAR3D'>('IRONBOW');
   const [creditLocked, setCreditLocked] = useState<boolean>(true);
   const [autoTriggerEnabled, setAutoTriggerEnabled] = useState<boolean>(false);
   const [showTune, setShowTune] = useState<boolean>(false);
+  const [showPairBar, setShowPairBar] = useState<boolean>(false);
+  const [lanUrls, setLanUrls] = useState<string[]>([]);
   const [sampleRate, setSampleRate] = useState<number>(48000);
   const [rangeLockM, setRangeLockM] = useState<number>(0); // Auto-track by default so 3D follows you immediately
   const [fallThreshold, setFallThreshold] = useState<number>(4.5);
@@ -65,6 +74,9 @@ export const App: React.FC = () => {
   const frameSeqRef = useRef<number>(0);
   const trialSubscriberRef = useRef<((f: RadarFrame) => void) | null>(null);
   const engineRef = useRef<KaavalSonarEngine | null>(null);
+  const snapshotGetterRef = useRef<(() => string | undefined) | null>(null);
+  const hubWsRef = useRef<WebSocket | null>(null);
+  const checkinBusyRef = useRef<boolean>(false);
 
   // Mutable refs for autonomous physical state machine inside audio callback
   const guardModeRef = useRef<GuardMode>('OFFLINE');
@@ -94,13 +106,27 @@ export const App: React.FC = () => {
 
   const stillnessSinceMsRef = useRef<number>(performance.now());
   const lastHudUpdateMsRef = useRef<number>(0);
+  const lastHubPushMsRef = useRef<number>(0);
   const cooldownUntilMsRef = useRef<number>(0);
+  const hudRef = useRef(hud);
+  hudRef.current = hud;
 
   useEffect(() => {
+    if (isCaregiverScreen) return;
+
     fetch('/api/health')
       .then((r) => r.json())
       .then((h) => {
         if (typeof h.creditGuardLocked === 'boolean') setCreditLocked(h.creditGuardLocked);
+      })
+      .catch(() => {});
+
+    fetch('/api/lan-info')
+      .then((r) => r.json())
+      .then((info: { lanIps?: string[] }) => {
+        const port = window.location.port || '5173';
+        const urls = (info.lanIps || []).map((ip) => `http://${ip}:${port}/caregiver`);
+        setLanUrls(urls.length ? urls : [`${window.location.origin}/caregiver`]);
       })
       .catch(() => {});
 
@@ -118,17 +144,72 @@ export const App: React.FC = () => {
         if (d && d.trials) setBenchmark(d);
       })
       .catch(() => {});
-  }, []);
+
+    // Connect Room Console to /ws/hub so Caregiver Phone reassurances play aloud in Amma's room
+    let closed = false;
+    let retryId = 0;
+    const connectHub = () => {
+      if (closed) return;
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${window.location.host}/ws/hub?role=room`);
+      hubWsRef.current = ws;
+
+      ws.onmessage = async (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'caregiver_reassurance') {
+            if (msg.incidents) setIncidents(msg.incidents);
+            if (msg.audioBase64 && !checkinBusyRef.current) {
+              if (engineRef.current) {
+                engineRef.current.setWorkletMode('VOICE_PAUSE');
+                await engineRef.current.playAlertToneAndBase64Audio(msg.audioBase64, true);
+                if (!checkinBusyRef.current) {
+                  engineRef.current.setWorkletMode('SONAR_LOCKED');
+                }
+              } else {
+                const tmpCtx = new AudioContext();
+                const bin = atob(msg.audioBase64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const buf = await tmpCtx.decodeAudioData(bytes.buffer.slice(0));
+                const src = tmpCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(tmpCtx.destination);
+                src.onended = () => tmpCtx.close();
+                src.start();
+              }
+            }
+          }
+        } catch {
+          // Ignore malformed WS message
+        }
+      };
+
+      ws.onclose = () => {
+        if (!closed) retryId = window.setTimeout(connectHub, 2000);
+      };
+    };
+
+    connectHub();
+    return () => {
+      closed = true;
+      window.clearTimeout(retryId);
+      hubWsRef.current?.close();
+    };
+  }, [isCaregiverScreen]);
 
   const runConsentCheckIn = useCallback(
     async (
       trigger: AnomalyTriggerReason,
       distanceMeters: number,
       peakMotionEnergy: number,
-      respirationBpmBefore: number | null
+      respirationBpmBefore: number | null,
+      azimuthDeg?: number
     ) => {
       const engine = engineRef.current;
-      if (!engine) return;
+      if (!engine || checkinBusyRef.current) return;
+      checkinBusyRef.current = true;
+      const snapshotDataUrl = snapshotGetterRef.current?.();
 
       try {
         setErrorMsg('');
@@ -136,7 +217,7 @@ export const App: React.FC = () => {
         setLiveTranscriptMl('');
         setVadActive(false);
 
-        // 1. Pause 20 kHz chirp smoothly so ultrasound never distorts Malayalam TTS
+        // 1. Pause chirp smoothly so ultrasound never distorts Malayalam TTS
         engine.setWorkletMode('VOICE_PAUSE');
 
         const promptRes = await fetch(`/api/prompt-audio?trigger=${encodeURIComponent(trigger)}`);
@@ -167,7 +248,7 @@ export const App: React.FC = () => {
         setConsentRemainingSec(0);
         setLiveTranscriptMl(sttResult.transcriptMl);
 
-        // 3. Worklet is now locked back to SONAR_LOCKED (<18 kHz zeroed). Run Sarvam Triage!
+        // 3. Worklet is now locked back to SONAR_LOCKED (<17.5 kHz zeroed). Run Sarvam Triage!
         setGuardMode('TRIAGING_RESPONSE');
         const triageRes = await fetch('/api/triage', {
           method: 'POST',
@@ -176,6 +257,8 @@ export const App: React.FC = () => {
             trigger,
             transcriptMl: sttResult.transcriptMl,
             distanceMeters,
+            azimuthDeg: azimuthDeg ?? hudRef.current.azimuthDeg,
+            snapshotDataUrl,
             peakMotionEnergy,
             respirationBpmBefore,
             sttLatencyMs: sttResult.sttLatencyMs,
@@ -190,7 +273,6 @@ export const App: React.FC = () => {
 
         const rec: IncidentRecord = triageJson.record;
 
-        // Play warm Malayalam reply (pause chirp briefly during spoken reply)
         if (rec.replyAudioBase64) {
           engine.setWorkletMode('VOICE_PAUSE');
           await engine.playAlertToneAndBase64Audio(rec.replyAudioBase64, false);
@@ -213,6 +295,8 @@ export const App: React.FC = () => {
         setErrorMsg((err as Error).message);
         engine.setWorkletMode('SONAR_LOCKED');
         setGuardMode('ARMED_MONITORING');
+      } finally {
+        checkinBusyRef.current = false;
       }
     },
     []
@@ -238,6 +322,25 @@ export const App: React.FC = () => {
           sonarDb: frame.sonarDb,
           speechDb: frame.speechDb,
         });
+      }
+
+      if (
+        now - lastHubPushMsRef.current > 420 &&
+        hubWsRef.current?.readyState === WebSocket.OPEN
+      ) {
+        lastHubPushMsRef.current = now;
+        hubWsRef.current.send(
+          JSON.stringify({
+            type: 'room_telemetry',
+            data: {
+              guardMode: guardModeRef.current,
+              distanceM: frame.targetMeters,
+              azimuthDeg: frame.targetAzimuthDeg,
+              bpm: frame.respirationBpm,
+              motionEnergy: frame.motionEnergy,
+            },
+          })
+        );
       }
 
       // Autonomous physical anomaly evaluation ONLY when Auto-Trigger is enabled & armed
@@ -328,6 +431,10 @@ export const App: React.FC = () => {
     }
   };
 
+  if (isCaregiverScreen) {
+    return <CaregiverView onBackToConsole={() => setIsCaregiverScreen(false)} />;
+  }
+
   const sonarArmed = guardMode !== 'OFFLINE';
   const ledClass =
     guardMode === 'OFFLINE'
@@ -394,18 +501,27 @@ export const App: React.FC = () => {
             disabled={
               !sonarArmed ||
               guardMode === 'LISTENING_CONSENT' ||
-              guardMode === 'PLAYING_PROMPT'
+              guardMode === 'PLAYING_PROMPT' ||
+              guardMode === 'TRIAGING_RESPONSE'
             }
             onClick={() =>
               runConsentCheckIn(
                 'MANUAL_VERIFICATION_TEST',
                 hud.distanceM,
                 hud.motionEnergy,
-                hud.bpm
+                hud.bpm,
+                hud.azimuthDeg
               )
             }
           >
             VOICE CHECK-IN
+          </button>
+
+          <button
+            className={showPairBar ? 'btn-tab-active' : ''}
+            onClick={() => setShowPairBar((v) => !v)}
+          >
+            PAIR PHONE
           </button>
 
           <button
@@ -441,6 +557,31 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {showPairBar && (
+        <div className="pair-bar">
+          <div>
+            <strong>JUDGE / CAREGIVER PHONE URL (SAME HOTSPOT):</strong>{' '}
+            {lanUrls.map((u) => (
+              <a
+                key={u}
+                href={u}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: '#14b8a6', marginRight: 12 }}
+              >
+                {u}
+              </a>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => window.open('/caregiver', '_blank', 'width=430,height=780')}>
+              OPEN PHONE WINDOW
+            </button>
+            <button onClick={() => setIsCaregiverScreen(true)}>SWITCH THIS TAB</button>
+          </div>
+        </div>
+      )}
 
       {showTune && (
         <div className="tune-drawer">
@@ -544,7 +685,7 @@ export const App: React.FC = () => {
           </span>
         </div>
         <div className="metric-cell">
-          <span className="readout-k">Speech (&lt;18 kHz)</span>
+          <span className="readout-k">Speech (&lt;17.5 kHz)</span>
           <span className="metric-val red">
             {guardMode === 'LISTENING_CONSENT'
               ? `OPEN ${consentRemainingSec.toFixed(0)}s`
@@ -562,14 +703,25 @@ export const App: React.FC = () => {
                 frameSeqRef={frameSeqRef}
                 guardMode={guardMode}
                 sonarArmed={sonarArmed}
+                snapshotGetterRef={snapshotGetterRef}
                 onVisualFallDetected={() => {
-                  if (autoTrigRef.current && guardModeRef.current === 'ARMED_MONITORING') {
-                    runConsentCheckIn(
-                      'FALL_IMPACT_AND_STILLNESS',
-                      hud.distanceM,
-                      Math.max(hud.motionEnergy, fallThreshold),
-                      hud.bpm
-                    );
+                  const now = performance.now();
+                  if (
+                    autoTrigRef.current &&
+                    guardModeRef.current === 'ARMED_MONITORING' &&
+                    now >= cooldownUntilMsRef.current &&
+                    !prealertStateRef.current.active
+                  ) {
+                    prealertStateRef.current = {
+                      active: true,
+                      startedMs: now,
+                      peakMotion: Math.max(hudRef.current.motionEnergy, fallThreshold),
+                      distanceAtSpike: hudRef.current.distanceM,
+                      bpmBefore: hudRef.current.bpm,
+                      postMotions: [],
+                    };
+                    setPrealertLeftSec(4.0);
+                    setGuardMode('ANOMALY_PREALERT');
                   }
                 }}
               />

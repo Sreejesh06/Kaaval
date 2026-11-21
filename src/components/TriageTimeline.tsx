@@ -33,7 +33,7 @@ export const TriageTimeline: React.FC<Props> = ({
         <div className="panel-head">
           <span className="panel-title">Consent-Gated Malayalam Check-In</span>
           <span className="panel-meta">
-            {inCheckin ? 'GATE OPEN (VERIFICATION)' : 'GATE LOCKED (>18 kHz ONLY)'}
+            {inCheckin ? 'GATE OPEN (VERIFICATION)' : 'GATE LOCKED (>17.5 kHz ONLY)'}
           </span>
         </div>
 
@@ -70,7 +70,7 @@ export const TriageTimeline: React.FC<Props> = ({
               {liveTranscriptMl ||
                 (guardMode === 'LISTENING_CONSENT'
                   ? 'മലയാളത്തിൽ മറുപടി പറയൂ...'
-                  : 'Locked (<18 kHz speech discarded).')}
+                  : 'Locked (<17.5 kHz speech discarded).')}
             </div>
           </div>
         </div>
@@ -103,8 +103,22 @@ export const TriageTimeline: React.FC<Props> = ({
                 </span>
               </div>
 
-              <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 5 }}>
-                {inc.clinicalSummaryEn}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 5 }}>
+                {inc.snapshotDataUrl && (
+                  <img
+                    src={inc.snapshotDataUrl}
+                    alt="Anonymized Ironbow Posture"
+                    style={{
+                      width: 88,
+                      height: 50,
+                      border: '1px solid #2d3b4e',
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <div style={{ fontSize: 12, fontWeight: 500 }}>
+                  {inc.clinicalSummaryEn}
+                </div>
               </div>
 
               {inc.transcriptMl && (
