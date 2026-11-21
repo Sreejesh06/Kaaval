@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/
+probe/
+public/mediapipe/wasm/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
