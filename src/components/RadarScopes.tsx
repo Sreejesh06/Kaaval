@@ -80,7 +80,7 @@ export const RadarScopes: React.FC<Props> = ({
       <div className="panel">
         <div className="panel-head">
           <span className="panel-title">Range-Time Waterfall</span>
-          <span className="panel-meta">0.48m → 3.0m</span>
+          <span className="panel-meta">0.32m → 3.0m</span>
         </div>
         <canvas ref={cvWaterfallRef} className="scope-canvas" width={540} height={152} />
       </div>
@@ -123,9 +123,9 @@ function drawWaterfall(canvas: HTMLCanvasElement | null, f: RadarFrame) {
   ctx.putImageData(prev, 0, 2);
 
   const row = ctx.createImageData(w, 2);
-  const minBin = Math.floor(0.48 / f.metersPerSample);
+  const minBin = Math.floor(0.32 / f.metersPerSample);
   const span = Math.max(1, f.clutterRemovedProfile.length - minBin);
-  const normScale = 1 / (f.directMag * 0.22 + 1e-6);
+  const normScale = 1 / (f.directMag * 0.16 + 1e-6);
 
   for (let x = 0; x < w; x++) {
     const bin = minBin + Math.floor((x / w) * span);
@@ -175,18 +175,20 @@ function drawRangeProfile(canvas: HTMLCanvasElement | null, f: RadarFrame) {
     ctx.fillText(`${m.toFixed(1)}m`, x + 3, 12);
   }
 
-  // Active range gate cursor
-  const lockX = (f.targetMeters / maxM) * w;
-  ctx.strokeStyle = 'rgba(20, 184, 166, 0.4)';
+  // Active range gate cursors for all confirmed people
+  ctx.strokeStyle = 'rgba(20, 184, 166, 0.45)';
   ctx.setLineDash([3, 3]);
-  ctx.beginPath();
-  ctx.moveTo(lockX, 0);
-  ctx.lineTo(lockX, h);
-  ctx.stroke();
+  for (const t of f.targets || []) {
+    const lx = (t.distanceMeters / maxM) * w;
+    ctx.beginPath();
+    ctx.moveTo(lx, 0);
+    ctx.lineTo(lx, h);
+    ctx.stroke();
+  }
   ctx.setLineDash([]);
 
-  const minBin = Math.floor(0.48 / f.metersPerSample);
-  const scale = 1 / (f.directMag * 0.24 + 1e-6);
+  const minBin = Math.floor(0.32 / f.metersPerSample);
+  const scale = 1 / (f.directMag * 0.18 + 1e-6);
 
   ctx.strokeStyle = '#14b8a6';
   ctx.lineWidth = 1.6;

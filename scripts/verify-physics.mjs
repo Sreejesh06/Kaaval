@@ -113,6 +113,8 @@ function main() {
     SPEED_OF_SOUND,
     FL_START,
     FL_END,
+    FR_START,
+    FR_END,
     F_FIREWALL_CUTOFF,
     fftInPlace,
     synthesizeChirp,
@@ -416,13 +418,129 @@ function main() {
     );
   }
 
+  // Test 5: Houseboat Arm-While-Seated + Rigid Wooden Wall Rejection (Zero Empty-Room Calibration!)
+  const boatWorklet = new KaavalDualWorklet({
+    processorOptions: { sampleRate: fs, stereoCapable: true },
+  });
+  let boatFrame = null;
+  boatWorklet.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') boatFrame = msg;
+  };
+  // Person sits @ 0.62m breathing +-2.0mm @ 16.0 BPM FROM FRAME 0, while a 4x louder rigid wood wall sits @ 2.35m!
+  let rng = 1337;
+  const nextNoise = () => {
+    rng = (rng * 1664525 + 1013904223) >>> 0;
+    return ((rng / 4294967296) - 0.5) * 0.0004;
+  };
+  for (let f = 0; f < 240; f++) {
+    const tSec = f / frameRate;
+    const seatedM = 0.62 + 0.002 * Math.sin(2 * Math.PI * (16.0 / 60.0) * tSec);
+    boatWorklet.rxBuf.fill(0);
+    // Direct speaker bleed (L + R)
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay, 0.85, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay, 0.72, fs, FR_START, FR_END, N);
+    // Loud rigid wooden houseboat wall @ 2.35m (0.00mm motion)
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay + 2.35 / metersPerSample, 0.09, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay + 2.35 / metersPerSample, 0.08, fs, FR_START, FR_END, N);
+    // Seated human @ 0.62m (4.5x weaker reflection than the wooden wall, but breathing!)
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay + seatedM / metersPerSample, 0.02, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(boatWorklet.rxBuf, directDelay + seatedM / metersPerSample, 0.018, fs, FR_START, FR_END, N);
+    for (let n = 0; n < N; n++) boatWorklet.rxBuf[n] += nextNoise();
+    boatWorklet.processRadarFrame();
+  }
+
+  const seatedErrCm = boatFrame ? Math.abs(boatFrame.targetMeters - 0.62) * 100 : Infinity;
+  const seatedBpm = boatFrame ? boatFrame.respirationBpm : null;
+  const seatedBpmErr = seatedBpm === null ? Infinity : Math.abs(seatedBpm - 16.0);
+  if (
+    boatFrame &&
+    boatFrame.peopleCount === 1 &&
+    seatedErrCm < 4.5 &&
+    seatedBpm !== null &&
+    seatedBpmErr <= 1.0
+  ) {
+    console.log(
+      `PASS [Test 5 | Seated-at-Boot & Wood Wall Reject] wall@2.35m=REJECTED, person=0.62m->${boatFrame.targetMeters.toFixed(2)}m (err ${seatedErrCm.toFixed(1)}cm), bpm=${seatedBpm.toFixed(1)}/16.0`
+    );
+  } else {
+    failures.push(
+      `Test 5 failed: count=${boatFrame?.peopleCount}, dist=${boatFrame?.targetMeters}, bpm=${seatedBpm}`
+    );
+    console.error('FAIL [Test 5]', boatFrame?.peopleCount, boatFrame?.targetMeters, seatedBpm);
+  }
+
+  // Test 7 (run right after 5): Empty Noisy Houseboat Cabin with 2 Wooden Walls -> 0 False Ghost People!
+  const emptyWorklet = new KaavalDualWorklet({
+    processorOptions: { sampleRate: fs, stereoCapable: true },
+  });
+  let emptyFrame = null;
+  emptyWorklet.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') emptyFrame = msg;
+  };
+  for (let f = 0; f < 90; f++) {
+    emptyWorklet.rxBuf.fill(0);
+    evalDelayedContinuousChirp(emptyWorklet.rxBuf, directDelay, 0.85, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(emptyWorklet.rxBuf, directDelay, 0.75, fs, FR_START, FR_END, N);
+    evalDelayedContinuousChirp(emptyWorklet.rxBuf, directDelay + 1.40 / metersPerSample, 0.07, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(emptyWorklet.rxBuf, directDelay + 2.55 / metersPerSample, 0.09, fs, FL_START, FL_END, N);
+    for (let n = 0; n < N; n++) emptyWorklet.rxBuf[n] += nextNoise() * 2.0;
+    emptyWorklet.processRadarFrame();
+  }
+  if (emptyFrame && emptyFrame.peopleCount === 0 && emptyFrame.primitives.includes('EMPTY_BASELINE')) {
+    console.log('PASS [Test 7 | Empty Noisy Cabin Zero-Ghost] walls@1.40m,2.55m + 2x noise -> peopleCount=0 (EMPTY_BASELINE)');
+  } else {
+    failures.push(`Test 7 ghost detected in empty cabin: count=${emptyFrame?.peopleCount}`);
+    console.error('FAIL [Test 7]', emptyFrame?.peopleCount, emptyFrame?.primitives);
+  }
+
+  // Test 6: Multi-Person Houseboat Cabin Separation (Person 1 @ 0.72m Left, Person 2 @ 1.85m Right)
+  const multiWorklet = new KaavalDualWorklet({
+    processorOptions: { sampleRate: fs, stereoCapable: true },
+  });
+  let multiFrame = null;
+  multiWorklet.port.postMessage = (msg) => {
+    if (msg.kind === 'radar') multiFrame = msg;
+  };
+  for (let f = 0; f < 65; f++) {
+    const tSec = f / frameRate;
+    const p1M = 0.72 + 0.003 * Math.sin(2 * Math.PI * 0.3 * tSec);
+    const p2M = 1.85 + 0.008 * Math.sin(2 * Math.PI * 0.7 * tSec);
+    multiWorklet.rxBuf.fill(0);
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay, 0.85, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay, 0.80, fs, FR_START, FR_END, N);
+    // Person 1 @ 0.72m on LEFT (closer/stronger on TX-L than TX-R)
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay + (p1M - 0.04) / metersPerSample, 0.028, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay + (p1M + 0.04) / metersPerSample, 0.011, fs, FR_START, FR_END, N);
+    // Person 2 @ 1.85m on RIGHT (closer/stronger on TX-R than TX-L)
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay + (p2M + 0.045) / metersPerSample, 0.009, fs, FL_START, FL_END, N);
+    evalDelayedContinuousChirp(multiWorklet.rxBuf, directDelay + (p2M - 0.045) / metersPerSample, 0.024, fs, FR_START, FR_END, N);
+    for (let n = 0; n < N; n++) multiWorklet.rxBuf[n] += nextNoise();
+    multiWorklet.processRadarFrame();
+  }
+
+  const tSorted = (multiFrame?.targets || []).slice().sort((a, b) => a.distanceMeters - b.distanceMeters);
+  if (
+    tSorted.length === 2 &&
+    Math.abs(tSorted[0].distanceMeters - 0.72) < 0.08 &&
+    Math.abs(tSorted[1].distanceMeters - 1.85) < 0.08 &&
+    tSorted[0].azimuthDeg < -8 &&
+    tSorted[1].azimuthDeg > 8
+  ) {
+    console.log(
+      `PASS [Test 6 | Multi-Person Stereo Cabin] count=2 | P1=${tSorted[0].distanceMeters.toFixed(2)}m (${tSorted[0].azimuthDeg.toFixed(0)}° Left), P2=${tSorted[1].distanceMeters.toFixed(2)}m (+${tSorted[1].azimuthDeg.toFixed(0)}° Right)`
+    );
+  } else {
+    failures.push(`Test 6 multi-person failed: ${JSON.stringify(tSorted)}`);
+    console.error('FAIL [Test 6]', tSorted);
+  }
+
   const elapsedMs = performance.now() - tStart;
-  if (failures.length === 0 && elapsedMs < 1000) {
-    console.log(`VERDICT: PASS (4/4 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
+  if (failures.length === 0 && elapsedMs < 2000) {
+    console.log(`VERDICT: PASS (7/7 physics suites verified in ${elapsedMs.toFixed(1)} ms)`);
     process.exit(0);
   } else {
-    if (elapsedMs >= 1000) {
-      failures.push(`Runtime ${elapsedMs.toFixed(1)} ms exceeded 1000 ms budget`);
+    if (elapsedMs >= 2000) {
+      failures.push(`Runtime ${elapsedMs.toFixed(1)} ms exceeded 2000 ms budget`);
     }
     console.error(`VERDICT: FAIL (${failures.join('; ')})`);
     process.exit(1);

@@ -23,6 +23,16 @@ export type SemanticPrimitive =
   | 'IMPACT_TRANSIENT'
   | 'POST_FALL_IMMOBILE';
 
+export interface DetectedPerson {
+  id: number;
+  distanceMeters: number;
+  azimuthDeg: number;
+  x: number;
+  z: number;
+  snrDb: number;
+  motion: number;
+}
+
 export interface RadarFrame {
   kind: 'radar';
   fs: number;
@@ -32,6 +42,8 @@ export interface RadarFrame {
   stereoActive: boolean;
   speechDb: number;
   sonarDb: number;
+  peopleCount: number;
+  targets: DetectedPerson[];
   targetMeters: number;
   targetAzimuthDeg: number; // -55 (Left) .. 0 (Center) .. +55 (Right)
   targetX: number; // Lateral meters (-Left / +Right)

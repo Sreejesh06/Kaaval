@@ -43,13 +43,14 @@ export const App: React.FC = () => {
   const [showPairBar, setShowPairBar] = useState<boolean>(false);
   const [lanUrls, setLanUrls] = useState<string[]>([]);
   const [sampleRate, setSampleRate] = useState<number>(48000);
-  const [rangeLockM, setRangeLockM] = useState<number>(0); // Auto-track by default so 3D follows you immediately
+  const [rangeLockM, setRangeLockM] = useState<number>(0);
   const [fallThreshold, setFallThreshold] = useState<number>(4.5);
   const [apneaLimitSec, setApneaLimitSec] = useState<number>(0);
-  const [txGain, setTxGain] = useState<number>(0.58);
+  const [txGain, setTxGain] = useState<number>(0.72);
 
   // Throttled numeric telemetry (~8 Hz UI refresh while canvas runs @ 60 Hz)
   const [hud, setHud] = useState({
+    peopleCount: 0,
     distanceM: 0,
     azimuthDeg: 0,
     dispMm: 0,
@@ -314,6 +315,7 @@ export const App: React.FC = () => {
       if (now - lastHudUpdateMsRef.current > 120) {
         lastHudUpdateMsRef.current = now;
         setHud({
+          peopleCount: frame.peopleCount,
           distanceM: frame.targetMeters,
           azimuthDeg: frame.targetAzimuthDeg,
           dispMm: frame.displacementMm,
@@ -659,11 +661,13 @@ export const App: React.FC = () => {
 
       <section className="metric-bar">
         <div className="metric-cell">
-          <span className="readout-k">Position</span>
+          <span className="readout-k">Room Occupancy</span>
           <span className="metric-val teal">
-            {sonarArmed
-              ? `${hud.distanceM.toFixed(2)}m · ${hud.azimuthDeg >= 0 ? '+' : ''}${hud.azimuthDeg.toFixed(0)}°`
-              : '--'}
+            {!sonarArmed
+              ? '--'
+              : hud.peopleCount === 0
+              ? '0 (EMPTY)'
+              : `${hud.peopleCount} · ${hud.distanceM.toFixed(2)}m (${hud.azimuthDeg >= 0 ? '+' : ''}${hud.azimuthDeg.toFixed(0)}°)`}
           </span>
         </div>
         <div className="metric-cell">

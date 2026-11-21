@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { GuardMode, RadarFrame, SemanticPrimitive } from '../types';
+import type { DetectedPerson, GuardMode, RadarFrame, SemanticPrimitive } from '../types';
 
 interface Props {
   latestFrameRef: React.MutableRefObject<RadarFrame | null>;
@@ -63,6 +63,7 @@ export const SpatialField3D: React.FC<Props> = ({
     let wavePhase = 0;
 
     const subject = {
+      targets: [] as DetectedPerson[],
       x: 0,
       z: 1.0,
       dispMm: 0,
@@ -117,8 +118,9 @@ export const SpatialField3D: React.FC<Props> = ({
           const frame = latestFrameRef.current;
           if (frame && seq !== lastSeq) {
             lastSeq = seq;
+            subject.targets = frame.targets || [];
             subject.x += 0.22 * (frame.targetX - subject.x);
-            subject.z += 0.22 * (Math.max(0.5, frame.targetZ) - subject.z);
+            subject.z += 0.22 * (Math.max(0.32, frame.targetZ) - subject.z);
             subject.dispMm = frame.displacementMm;
             subject.bpm = frame.respirationBpm;
             subject.presence = frame.presenceRatio;
@@ -127,7 +129,7 @@ export const SpatialField3D: React.FC<Props> = ({
             gridR = frame.spatialRangeSlices;
             gridAz = frame.spatialAzimuthBins;
 
-            if (frame.presenceRatio > 0.22 || frame.motionEnergy > 0.5) {
+            if (frame.peopleCount > 0) {
               trail.push({ x: subject.x, z: subject.z });
               if (trail.length > 34) trail.shift();
             }
@@ -260,6 +262,7 @@ function renderObservatory(
   gridR: number,
   gridAz: number,
   subject: {
+    targets: DetectedPerson[];
     x: number;
     z: number;
     dispMm: number;
@@ -403,102 +406,104 @@ function renderObservatory(
     ctx.stroke();
   }
 
-  // 6. Clean 3D Human Presence Silhouette & Breathing Halo (zero wireframe spaghetti)
-  const occupied = armed && (subject.presence > 0.2 || subject.motion > 0.4 || subject.collapsed > 0.1);
-  if (occupied) {
+  // 6. Clean 3D Multi-Person Presence Silhouettes & Breathing Halo
+  if (armed && subject.targets.length > 0) {
     const isEmergency =
       mode === 'EMERGENCY_DISPATCHED' ||
       mode === 'LISTENING_CONSENT' ||
       mode === 'PLAYING_PROMPT';
     const isPrealert = mode === 'ANOMALY_PREALERT';
-    const accent = isEmergency ? '#e11d48' : isPrealert ? '#f59e0b' : '#14b8a6';
-    const accentDim = isEmergency
-      ? 'rgba(225, 29, 72, 0.22)'
-      : isPrealert
-      ? 'rgba(245, 158, 11, 0.22)'
-      : 'rgba(20, 184, 166, 0.20)';
 
-    // Floor reticle ring + crosshairs at measured (X, Z)
-    const floorCenter = project({ x: subject.x, y: 0, z: subject.z }, w, h);
-    drawFloorCircle(ctx, project, subject.x, subject.z, 0.24, w, h, accent, 1.5);
-    if (isEmergency) {
-      const pulseR = 0.28 + ((wavePhase * 1.6) % 1.0) * 0.45;
-      drawFloorCircle(ctx, project, subject.x, subject.z, pulseR, w, h, 'rgba(225,29,72,0.5)', 1.2);
-    }
+    subject.targets.forEach((person, idx) => {
+      const isPrimary = idx === 0;
+      const accent = isPrimary
+        ? isEmergency
+          ? '#e11d48'
+          : isPrealert
+          ? '#f59e0b'
+          : '#14b8a6'
+        : '#38bdf8';
+      const accentDim = isPrimary
+        ? isEmergency
+          ? 'rgba(225, 29, 72, 0.22)'
+          : isPrealert
+          ? 'rgba(245, 158, 11, 0.22)'
+          : 'rgba(20, 184, 166, 0.20)'
+        : 'rgba(56, 189, 248, 0.18)';
 
-    if (subject.collapsed < 0.5) {
-      // Upright Volumetric Beacon: subtle vertical glow column + articulated head/shoulder/chest marker
-      const chestH = 0.78;
-      const headH = 1.18;
-      const chestPt = project({ x: subject.x, y: chestH, z: subject.z }, w, h);
-      const headPt = project({ x: subject.x, y: headH, z: subject.z }, w, h);
-      const shL = project({ x: subject.x - 0.17, y: 0.96, z: subject.z }, w, h);
-      const shR = project({ x: subject.x + 0.17, y: 0.96, z: subject.z }, w, h);
-      const hipL = project({ x: subject.x - 0.11, y: 0.46, z: subject.z }, w, h);
-      const hipR = project({ x: subject.x + 0.11, y: 0.46, z: subject.z }, w, h);
+      const px = person.x;
+      const pz = person.z;
+      const floorCenter = project({ x: px, y: 0, z: pz }, w, h);
+      drawFloorCircle(ctx, project, px, pz, 0.23, w, h, accent, 1.5);
 
-      // Soft translucent torso polygon
-      ctx.fillStyle = accentDim;
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(shL.x, shL.y);
-      ctx.lineTo(shR.x, shR.y);
-      ctx.lineTo(hipR.x, hipR.y);
-      ctx.lineTo(hipL.x, hipL.y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      if (!isPrimary || subject.collapsed < 0.5) {
+        const chestH = 0.78;
+        const headH = 1.18;
+        const headPt = project({ x: px, y: headH, z: pz }, w, h);
+        const shL = project({ x: px - 0.17, y: 0.96, z: pz }, w, h);
+        const shR = project({ x: px + 0.17, y: 0.96, z: pz }, w, h);
+        const hipL = project({ x: px - 0.11, y: 0.46, z: pz }, w, h);
+        const hipR = project({ x: px + 0.11, y: 0.46, z: pz }, w, h);
 
-      // Vertical spine anchor to floor
-      ctx.strokeStyle = 'rgba(232, 238, 245, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(floorCenter.x, floorCenter.y);
-      ctx.lineTo(headPt.x, headPt.y + 8);
-      ctx.stroke();
+        ctx.fillStyle = accentDim;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(shL.x, shL.y);
+        ctx.lineTo(shR.x, shR.y);
+        ctx.lineTo(hipR.x, hipR.y);
+        ctx.lineTo(hipL.x, hipL.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
 
-      // Thoracic Breathing Ring (modulated by real unwrapped IQ displacementMm)
-      const breathR = 0.21 + Math.max(-0.06, Math.min(0.06, subject.dispMm * 0.015));
-      drawHorizontalCircle(ctx, project, subject.x, chestH, subject.z, breathR, w, h, accent, 1.8);
+        ctx.strokeStyle = 'rgba(232, 238, 245, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(floorCenter.x, floorCenter.y);
+        ctx.lineTo(headPt.x, headPt.y + 8);
+        ctx.stroke();
 
-      // Clean head circle
-      ctx.fillStyle = '#05070a';
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(headPt.x, headPt.y, 7.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+        const breathR =
+          0.21 + (isPrimary ? Math.max(-0.06, Math.min(0.06, subject.dispMm * 0.015)) : 0);
+        drawHorizontalCircle(ctx, project, px, chestH, pz, breathR, w, h, accent, 1.8);
 
-      drawCalloutPill(
-        ctx,
-        headPt.x,
-        headPt.y - 18,
-        `${Math.hypot(subject.x, subject.z).toFixed(2)}m${
-          subject.bpm ? ` · ${subject.bpm.toFixed(0)} BPM` : ''
-        }`,
-        accent
-      );
-    } else {
-      // Fallen / Horizontal Floor Alert Marker
-      const bodyEnd = project({ x: subject.x + 0.48, y: 0.12, z: subject.z + 0.15 }, w, h);
-      const bodyStart = project({ x: subject.x - 0.18, y: 0.12, z: subject.z - 0.05 }, w, h);
-      ctx.strokeStyle = '#e11d48';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(bodyStart.x, bodyStart.y);
-      ctx.lineTo(bodyEnd.x, bodyEnd.y);
-      ctx.stroke();
+        ctx.fillStyle = '#05070a';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(headPt.x, headPt.y, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
-      drawCalloutPill(
-        ctx,
-        floorCenter.x,
-        floorCenter.y - 24,
-        `FALL VERIFICATION · ${Math.hypot(subject.x, subject.z).toFixed(2)}m`,
-        '#e11d48'
-      );
-    }
+        drawCalloutPill(
+          ctx,
+          headPt.x,
+          headPt.y - 18,
+          `P${idx + 1} · ${person.distanceMeters.toFixed(2)}m${
+            isPrimary && subject.bpm ? ` · ${subject.bpm.toFixed(0)} BPM` : ''
+          }`,
+          accent
+        );
+      } else {
+        const bodyEnd = project({ x: px + 0.48, y: 0.12, z: pz + 0.15 }, w, h);
+        const bodyStart = project({ x: px - 0.18, y: 0.12, z: pz - 0.05 }, w, h);
+        ctx.strokeStyle = '#e11d48';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(bodyStart.x, bodyStart.y);
+        ctx.lineTo(bodyEnd.x, bodyEnd.y);
+        ctx.stroke();
+
+        drawCalloutPill(
+          ctx,
+          floorCenter.x,
+          floorCenter.y - 24,
+          `FALL VERIFICATION · ${person.distanceMeters.toFixed(2)}m`,
+          '#e11d48'
+        );
+      }
+    });
   } else if (!armed) {
     ctx.fillStyle = '#566579';
     ctx.font = '12px "IBM Plex Mono", monospace';
