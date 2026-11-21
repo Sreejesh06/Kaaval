@@ -3,6 +3,7 @@ import path from 'node:path';
 import type {
   BenchmarkSummary,
   BenchmarkTrial,
+  CaregiverReply,
   GroundTruthClass,
   IncidentRecord,
 } from '../src/types.js';
@@ -22,32 +23,85 @@ interface DiskStore {
   trials: BenchmarkTrial[];
 }
 
+const recentAudioByIncidentId = new Map<string, string>();
+
+function hydrateIncidents(incidents: IncidentRecord[]): IncidentRecord[] {
+  return incidents.map((inc) => {
+    const cachedAudio = inc.replyAudioBase64 ?? recentAudioByIncidentId.get(inc.id);
+    return cachedAudio !== undefined ? { ...inc, replyAudioBase64: cachedAudio } : inc;
+  });
+}
+
 function loadStore(): DiskStore {
   if (!fs.existsSync(STORE_PATH)) {
     return { incidents: [], trials: [] };
   }
   try {
-    return JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')) as DiskStore;
+    const parsed = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')) as DiskStore;
+    const incidents = Array.isArray(parsed.incidents) ? parsed.incidents : [];
+    const trials = Array.isArray(parsed.trials) ? parsed.trials : [];
+    for (const inc of incidents) {
+      if (inc.replyAudioBase64 && !recentAudioByIncidentId.has(inc.id)) {
+        recentAudioByIncidentId.set(inc.id, inc.replyAudioBase64);
+      }
+    }
+    return { incidents, trials };
   } catch {
     return { incidents: [], trials: [] };
   }
 }
 
 function saveStore(store: DiskStore) {
+  for (const inc of store.incidents) {
+    if (inc.replyAudioBase64) {
+      recentAudioByIncidentId.set(inc.id, inc.replyAudioBase64);
+    }
+  }
+
+  const activeIds = new Set(store.incidents.map((inc) => inc.id));
+  for (const cachedId of recentAudioByIncidentId.keys()) {
+    if (!activeIds.has(cachedId)) {
+      recentAudioByIncidentId.delete(cachedId);
+    }
+  }
+
+  const diskStore: DiskStore = {
+    incidents: store.incidents.map(({ replyAudioBase64: _stripped, ...rest }) => rest),
+    trials: store.trials,
+  };
+
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+  fs.writeFileSync(STORE_PATH, JSON.stringify(diskStore, null, 2), 'utf8');
 }
 
 export function listIncidents(): IncidentRecord[] {
-  return loadStore().incidents;
+  return hydrateIncidents(loadStore().incidents);
 }
 
 export function appendIncident(incident: IncidentRecord): IncidentRecord[] {
+  if (incident.replyAudioBase64) {
+    recentAudioByIncidentId.set(incident.id, incident.replyAudioBase64);
+  }
   const store = loadStore();
   store.incidents.unshift(incident);
   store.incidents = store.incidents.slice(0, 40);
   saveStore(store);
-  return store.incidents;
+  return hydrateIncidents(store.incidents);
+}
+
+export function appendCaregiverReply(
+  incidentId: string | undefined,
+  reply: CaregiverReply
+): IncidentRecord[] {
+  const store = loadStore();
+  const target =
+    (incidentId ? store.incidents.find((inc) => inc.id === incidentId) : undefined) ??
+    store.incidents[0];
+  if (target) {
+    target.caregiverReplies = [...(target.caregiverReplies || []), reply];
+    saveStore(store);
+  }
+  return hydrateIncidents(store.incidents);
 }
 
 export function classifyTrialFeatures(f: {

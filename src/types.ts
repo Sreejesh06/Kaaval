@@ -60,12 +60,22 @@ export interface SarvamTraceStep {
   detail: string;
 }
 
+export interface CaregiverReply {
+  id: string;
+  timestampIso: string;
+  messageInput: string;
+  sourceLang: string;
+  spokenMalayalam: string;
+  latencyMs: number;
+}
+
 export interface IncidentRecord {
   id: string;
   timestampIso: string;
   trigger: AnomalyTriggerReason;
   distanceMeters: number;
   azimuthDeg?: number;
+  snapshotDataUrl?: string;
   peakMotionEnergy: number;
   respirationBpmBefore: number | null;
   promptMl: string;
@@ -76,6 +86,8 @@ export interface IncidentRecord {
   replyMl: string;
   replyAudioBase64?: string;
   sarvamTraces: SarvamTraceStep[];
+  caregiverReplies?: CaregiverReply[];
+  offlineFallback?: boolean;
 }
 
 export type GroundTruthClass =
