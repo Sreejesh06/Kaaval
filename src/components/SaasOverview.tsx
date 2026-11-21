@@ -37,30 +37,25 @@ export const SaasOverview: React.FC<Props> = ({
 }) => {
   return (
     <div>
-      {/* 1. Electric Cobalt Hero + Scalloped Cloud Divider */}
+      {/* 1. Electric Cobalt Hero (#2958D4) transitioning into Deep Plum-Night (#21182D) */}
       <section className="gx-hero">
-        <SparkleStarSvg
-          className="gx-star-float"
-          fill="#FFE24D"
-          size={26}
-        />
         <div
           className="gx-star-float"
-          style={{ top: '22%', left: '9%', animationDelay: '0.4s' }}
+          style={{ top: '20%', left: '9%', animationDelay: '0.4s' }}
         >
           <SparkleStarSvg fill="#FFFFFF" size={22} />
         </div>
         <div
           className="gx-star-float"
-          style={{ top: '28%', right: '10%', animationDelay: '1.8s' }}
+          style={{ top: '26%', right: '10%', animationDelay: '1.8s' }}
         >
-          <SparkleStarSvg fill="#FFE24D" size={28} />
+          <SparkleStarSvg fill="#FFE24D" size={26} />
         </div>
         <div
           className="gx-star-float"
-          style={{ bottom: '34%', left: '16%', animationDelay: '2.7s' }}
+          style={{ bottom: '32%', left: '15%', animationDelay: '2.7s' }}
         >
-          <SparkleStarSvg fill="#3ED598" size={18} />
+          <SparkleStarSvg fill="#1CE494" size={18} />
         </div>
 
         <div className="gx-hero-inner">
@@ -87,7 +82,7 @@ export const SaasOverview: React.FC<Props> = ({
               className="gx-cta-btn gx-cta-big"
               onClick={sonarArmed ? onOpenConsole : onArmAndOpenConsole}
             >
-              <IconSonarWave size={19} />
+              <IconSonarWave size={18} />
               {sonarArmed ? 'Open live room console' : 'Arm sonar & open console'}
             </button>
 
@@ -96,16 +91,16 @@ export const SaasOverview: React.FC<Props> = ({
               className="gx-cta-sec"
               onClick={onOpenCaregiver}
             >
-              <IconPhonePair size={19} />
+              <IconPhonePair size={18} />
               Open caregiver phone app
             </button>
           </div>
         </div>
 
-        <HeroCloudsDivider />
+        <HeroCloudsDivider fill="#21182D" />
       </section>
 
-      {/* 2. Signature -1.6deg Rotated Lime Ticker Tape */}
+      {/* 2. Signature -1.6deg Rotated Acid-Lime Ticker */}
       <div className="gx-ticker" aria-label="Verified acoustic specifications">
         <div className="gx-ticker-track">
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, idx) => (
@@ -114,8 +109,8 @@ export const SaasOverview: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 3. Warm Cream Proof Deck — 4 Tilted Tactile Cards with Stroked Numerals */}
-      <section className="gx-section">
+      {/* 3. Deep Plum-Night (#21182D) Proof Deck — Exact GrowthX Offcampus `_what_fa47f19` Contrast! */}
+      <section className="gx-section gx-night-band">
         <div className="gx-container">
           <h2 className="gx-sec-title">Verified physics, not black-box claims.</h2>
           <p className="gx-sec-lead">
@@ -167,7 +162,7 @@ export const SaasOverview: React.FC<Props> = ({
               <div className="gx-big-num">4 models</div>
               <h3>Malayalam triage &amp; voice bridge</h3>
               <p>
-                Bulbul v3 asks on Amma in Malayalam, Saaras v4 transcribes, Sarvam-105B filters
+                Bulbul v3 checks on Amma in Malayalam, Saaras v4 transcribes, Sarvam-105B filters
                 false alarms, and NRI family reply in English or Malayalam to her room speaker.
               </p>
             </article>
@@ -175,7 +170,7 @@ export const SaasOverview: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* 4. Cobalt Blue Problem vs. Mechanism Split Band */}
+      {/* 4. Electric Cobalt (#2958D4) Problem vs. Mechanism Split (`_about_fa47f19` + `_room_fa47f19`) */}
       <section className="gx-section gx-blue-band">
         <div className="gx-container gx-about-grid">
           <div>
@@ -188,19 +183,23 @@ export const SaasOverview: React.FC<Props> = ({
             </h2>
             <p style={{ fontSize: 16.5, color: '#e6ecff', marginTop: 12, maxWidth: '48ch' }}>
               Kerala has India&apos;s highest elderly share (16.5% today, projected 22.8% by 2036,
-              UNFPA) while 2.2 million Keralites work outside the state or abroad (KMS). Parents
-              refuse indoor cameras, and pendants sit on bedside tables during night falls.
+              UNFPA) while 2.2 million Keralites work outside the state or abroad (KMS).
             </p>
             <p className="gx-strike-line">
-              No <s>bedroom CCTV cameras</s>. No <s>unworn wrist pendants</s>. No{' '}
-              <s>3 a.m. false-alarm panic texts</s>. Just ambient acoustic physics + spoken
-              Malayalam consent.
+              Not a <s>bedroom CCTV camera</s>, an <s>unworn wrist pendant</s>, or{' '}
+              <s>3 a.m. false-alarm spam</s>.
             </p>
+
+            <ul className="gx-glass-list">
+              <li>Runs on any bedside laptop or tablet browser with zero extra hardware</li>
+              <li>Separates normal room walking from sudden impact + 4s stillness</li>
+              <li>Speaks natural Malayalam before ever waking family abroad</li>
+            </ul>
           </div>
 
           <div className="gx-beats">
             <div className="gx-beat" style={{ background: 'var(--yellow)' }}>
-              <h3>1. Detects even if already seated at boot</h3>
+              <h3>Detects even if already seated at boot</h3>
               <p>
                 A 0.60-second (14-frame) complex IQ delay-line canceller + Hann-windowed OS-CFAR
                 isolates human micro-sway and chest breathing from 4.5× louder wooden cabin walls.
@@ -208,15 +207,15 @@ export const SaasOverview: React.FC<Props> = ({
             </div>
 
             <div className="gx-beat" style={{ background: 'var(--green)' }}>
-              <h3>2. Separates walking past from real falls</h3>
+              <h3>Filters false alarms in spoken Malayalam</h3>
               <p>
-                High motion impulse triggers a 4.0-second recovery watch. Continuous footsteps
-                cancel silently; post-impact stillness triggers a gentle Malayalam voice check-in.
+                If Amma drops a book and replies &ldquo;കുഴപ്പമില്ല മോനേ&rdquo;, Sarvam-105B marks
+                the event safe locally and immediately re-locks the &lt;17.5 kHz speech firewall.
               </p>
             </div>
 
-            <div className="gx-beat" style={{ background: 'var(--lilac)' }}>
-              <h3>3. Two-way reassurance on any hotspot</h3>
+            <div className="gx-beat" style={{ background: 'var(--pink)' }}>
+              <h3>Two-way reassurance on any hotspot</h3>
               <p>
                 If Amma needs help or stays silent, caregivers get an anonymized Sonic Ironbow
                 posture card on their phone and speak back into her room in natural Malayalam.
@@ -226,8 +225,8 @@ export const SaasOverview: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* 5. Cream2 5-Step Pipeline + Sarvam AI Model Trace Card */}
-      <section className="gx-section gx-cream2-band">
+      {/* 5. Cool Porcelain (#F4F2F8) 5-Step Pipeline + Dark SaaS Terminal Verification Card */}
+      <section className="gx-section gx-porcelain-band">
         <div className="gx-container">
           <h2 className="gx-sec-title">How a fall check-in works end to end</h2>
           <p className="gx-sec-lead">
@@ -288,7 +287,7 @@ export const SaasOverview: React.FC<Props> = ({
               <h3 style={{ fontSize: 26, fontWeight: 800, marginTop: 12 }}>
                 Four Indian-language models orchestrated only after physical verification
               </h3>
-              <p style={{ color: 'var(--muted)', marginTop: 8, fontSize: 15 }}>
+              <p style={{ color: 'var(--muted-on-light)', marginTop: 8, fontSize: 15 }}>
                 Zero background cloud streaming. API calls fire strictly during the 9.5-second
                 post-anomaly verification window—or run in 0-credit rehearsal lock while testing.
               </p>
@@ -311,7 +310,7 @@ export const SaasOverview: React.FC<Props> = ({
                 </li>
               </ul>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 20 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
                 <button
                   type="button"
                   className="btn-arm"
@@ -328,15 +327,15 @@ export const SaasOverview: React.FC<Props> = ({
             <div className="gx-fact-stack">
               <div className="gx-fact-box">
                 <h4>What never leaves the room</h4>
-                <p style={{ fontSize: 14, color: 'var(--ink)' }}>
+                <p style={{ fontSize: 14 }}>
                   Optical video (0 pixels), everyday conversation (&lt;17.5 kHz zeroed in DSP), and
                   auto-dismissed false alarms when Amma confirms she is fine.
                 </p>
               </div>
 
-              <div className="gx-fact-box lime">
+              <div className="gx-fact-box cobalt">
                 <h4>What reaches the caregiver phone</h4>
-                <p style={{ fontSize: 14, color: 'var(--ink)' }}>
+                <p style={{ fontSize: 14 }}>
                   Room range &amp; respiration BPM, anonymized Sonic Ironbow echo silhouette,
                   Malayalam + English clinical summary, and instant 2-way voice reassurance.
                 </p>
@@ -346,8 +345,8 @@ export const SaasOverview: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* 6. Engineering Boundaries & FAQ */}
-      <section className="gx-section">
+      {/* 6. Deep Plum-Night (#21182D) Engineering Boundaries & FAQ */}
+      <section className="gx-section gx-night-band">
         <div className="gx-container">
           <h2 className="gx-sec-title">Physical boundaries &amp; setup questions</h2>
           <p className="gx-sec-lead">
@@ -410,14 +409,14 @@ export const SaasOverview: React.FC<Props> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <KaavalLogoMark size={38} />
+            <KaavalLogoMark size={36} />
             <div>
               <div
                 style={{
                   fontFamily: 'var(--font-display)',
                   fontWeight: 800,
-                  fontSize: 19,
-                  color: 'var(--cream)',
+                  fontSize: 18,
+                  color: 'var(--white)',
                 }}
               >
                 Kaaval · ശബ്ദ-കാവൽ
@@ -439,6 +438,11 @@ export const SaasOverview: React.FC<Props> = ({
             <button
               type="button"
               onClick={onOpenCaregiver}
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                borderColor: 'rgba(255,255,255,0.3)',
+                color: '#fff',
+              }}
             >
               Caregiver companion
             </button>

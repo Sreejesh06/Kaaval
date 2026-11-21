@@ -1,16 +1,31 @@
 /* ==========================================================================
-   KAAVAL — Transplanted GrowthX Offcampus Design System
-   Exact extracted tokens from https://growthx.club/offcampus (QjKJLhgN.css)
+   KAAVAL — Authentic GrowthX Offcampus + SaaS Chrome Design System
+   Extracted from https://growthx.club/offcampus (QjKJLhgN.css + BhQZciVg.css + BNtQXQqY.css)
+   Color Roles:
+   - Obsidian / Plum-Night (#0e0b16, #16121c, #21182d): SaaS chrome, console canvas & dark cards
+   - Electric Cobalt (#2958d4): Hero, active SaaS state, console command header band
+   - Sun-Yellow (#ffe24d): EXCLUSIVELY the single primary CTA per view & pre-alert highlights
+   - Sonic Emerald (#3ed598 / #1ce494): Armed/healthy vitals, SAFE classification, matrix hits
+   - Lilac (#b9a2ff): Sarvam AI voice & model trace accents
+   - Coral-Pink (#ff6fb1): <17.5 kHz speech firewall & EMERGENCY alerts
+   - Cool Porcelain (#f4f2f8) & Cream (#fff4c1): Editorial landing contrast & display type
    ========================================================================== */
 
 :root {
+  --obsidian: #0e0b16;
+  --ink: #16121c;
+  --night: #21182d;
+  --night-card: #1b1426;
+  --night-elevated: #271d36;
+  --night-border: rgba(185, 162, 255, 0.16);
+  --night-border-strong: rgba(185, 162, 255, 0.28);
+
   --blue: #2958d4;
   --blue-deep: #1e44b0;
   --cream: #fff4c1;
-  --cream2: #f9eecf;
-  --night: #21182d;
-  --night-elevated: #2c203b;
-  --ink: #16121c;
+  --porcelain: #f4f2f8;
+  --porcelain-line: #e3dfea;
+
   --yellow: #ffe24d;
   --lime: #e4f25c;
   --green: #3ed598;
@@ -18,7 +33,10 @@
   --pink: #ff6fb1;
   --lilac: #b9a2ff;
   --white: #ffffff;
-  --muted: #4f4759;
+
+  --text-on-dark: #f5f3fa;
+  --muted-on-dark: #a39bb5;
+  --muted-on-light: #534b62;
 
   --font-display: 'Bricolage Grotesque', 'Outfit', system-ui, sans-serif;
   --font-sans: 'Outfit', 'Noto Sans Malayalam', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -39,8 +57,8 @@ html {
 }
 
 body {
-  background: var(--cream);
-  color: var(--ink);
+  background: var(--obsidian);
+  color: var(--text-on-dark);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
@@ -48,7 +66,7 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid var(--yellow);
+  outline: 2.5px solid var(--yellow);
   outline-offset: 2px;
 }
 
@@ -75,114 +93,125 @@ p {
 }
 
 /* ==========================================================================
-   Shared Tactile Controls (Buttons, Inputs, Selects, Pills)
+   Buttons & Controls — Restrained SaaS Hierarchy (Zero Shadow Spam!)
+   Secondary controls are flat architectural pills; ONLY Primary CTA gets #FFE24D + tactile offset
    ========================================================================== */
 
 button,
 select {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
-  background: var(--white);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-on-dark);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: none;
   border-radius: 999px;
-  padding: 7px 16px;
-  min-height: 38px;
+  padding: 6px 14px;
+  min-height: 36px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  transition: transform 130ms var(--ease-spring), box-shadow 130ms var(--ease-spring), background-color 130ms ease;
+  gap: 6px;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 130ms var(--ease-spring), box-shadow 130ms var(--ease-spring);
 }
 
 button:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--ink);
-}
-
-button:active:not(:disabled) {
-  transform: translate(1.5px, 1.5px);
-  box-shadow: 1px 1px 0 var(--ink);
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 button:disabled {
-  opacity: 0.48;
+  opacity: 0.42;
   cursor: not-allowed;
 }
 
+/* Signature GrowthX Primary CTA — used ONCE per screen to anchor visual hierarchy */
 button.btn-arm,
 .gx-cta-btn {
   background: var(--yellow);
   color: var(--ink);
   font-weight: 700;
+  border: 2px solid var(--ink);
   box-shadow: 3px 3px 0 var(--ink);
 }
 
 button.btn-arm:hover:not(:disabled),
 .gx-cta-btn:hover:not(:disabled) {
-  background: #ffea70;
+  background: #ffea75;
+  border-color: var(--ink);
+  transform: translate(-1px, -1px);
   box-shadow: 4px 4px 0 var(--ink);
 }
 
-button.btn-danger {
-  background: var(--pink);
-  color: var(--ink);
-  font-weight: 700;
+button.btn-arm:active:not(:disabled),
+.gx-cta-btn:active:not(:disabled) {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 1px 1px 0 var(--ink);
 }
 
 button.btn-green {
-  background: var(--green);
-  color: var(--ink);
-  font-weight: 700;
+  background: rgba(28, 228, 148, 0.16);
+  color: var(--green-bright);
+  border-color: rgba(28, 228, 148, 0.42);
 }
 
 button.btn-lilac {
-  background: var(--lilac);
-  color: var(--ink);
-  font-weight: 700;
+  background: rgba(185, 162, 255, 0.15);
+  color: #dcd0ff;
+  border-color: rgba(185, 162, 255, 0.36);
+}
+
+button.btn-lilac:hover:not(:disabled) {
+  background: rgba(185, 162, 255, 0.24);
+  border-color: var(--lilac);
+}
+
+button.btn-danger {
+  background: rgba(255, 111, 177, 0.16);
+  color: var(--pink);
+  border-color: rgba(255, 111, 177, 0.42);
 }
 
 button.btn-tab-active {
-  background: var(--ink);
-  color: var(--cream);
-  box-shadow: 2px 2px 0 var(--blue);
+  background: var(--blue);
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 select {
-  padding-right: 14px;
-  background: var(--cream);
+  background: var(--obsidian);
+  color: var(--text-on-dark);
+  border: 1px solid var(--night-border-strong);
+  padding-right: 12px;
 }
 
 input[type='range'] {
   width: 88px;
-  accent-color: var(--blue);
+  accent-color: var(--yellow);
   cursor: pointer;
 }
 
 /* ==========================================================================
-   Global Sticky SaaS Navigation Shell
+   Top SaaS Navigation Chrome (Inspired by BhQZciVg.css #060606 bar)
+   Single clean row — NEVER wraps into messy pill rows!
    ========================================================================== */
 
 .gx-nav-wrap {
   position: sticky;
   top: 0;
-  z-index: 40;
-  background: var(--cream);
-  border-bottom: 2px solid var(--ink);
-}
-
-.gx-nav-wrap.on-blue {
-  background: var(--blue);
-  color: var(--white);
+  z-index: 50;
+  background: rgba(14, 11, 22, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .gx-nav {
-  max-width: 1420px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 10px 20px;
+  min-height: 58px;
+  padding: 8px 20px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -199,68 +228,58 @@ input[type='range'] {
   gap: 9px;
 }
 
-.gx-brand-btn:hover {
-  transform: none !important;
-}
-
 .gx-brand-word {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: inherit;
+  color: var(--white);
 }
 
 .gx-brand-ml {
   font-family: var(--font-ml);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  background: var(--lime);
-  color: var(--ink);
-  border: 1.5px solid var(--ink);
+  background: rgba(228, 242, 92, 0.14);
+  color: var(--lime);
+  border: 1px solid rgba(228, 242, 92, 0.35);
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 2px 8px;
 }
 
 .gx-nav-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--cream2);
-  border: 2px solid var(--ink);
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 999px;
-  padding: 4px;
-  box-shadow: 2px 2px 0 var(--ink);
+  padding: 3px;
 }
 
 .gx-nav-tab {
   border: none;
-  box-shadow: none;
   background: transparent;
-  color: var(--ink);
+  color: rgba(255, 255, 255, 0.68);
   min-height: 32px;
   padding: 5px 14px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .gx-nav-tab:hover:not(:disabled) {
-  transform: none;
-  box-shadow: none;
-  background: rgba(22, 18, 28, 0.07);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--white);
 }
 
 .gx-nav-tab.active {
-  background: var(--yellow);
-  border: 1.5px solid var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
-  font-weight: 700;
+  background: var(--blue);
+  color: var(--white);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .gx-nav-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -272,35 +291,54 @@ input[type='range'] {
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 500;
-  background: var(--white);
-  color: var(--ink);
-  border: 1.5px solid var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  padding: 5px 11px;
+  padding: 4px 11px;
 }
 
 .led {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
-  background: #b8b0c4;
+  background: #6c6480;
   display: inline-block;
 }
 
-.led.on-teal { background: var(--green-bright); }
-.led.on-amber { background: var(--yellow); }
-.led.on-red { background: var(--pink); }
+.led.on-teal {
+  background: var(--green-bright);
+  box-shadow: 0 0 8px rgba(28, 228, 148, 0.65);
+}
+.led.on-amber {
+  background: var(--yellow);
+  box-shadow: 0 0 8px rgba(255, 226, 77, 0.65);
+}
+.led.on-red {
+  background: var(--pink);
+  box-shadow: 0 0 8px rgba(255, 111, 177, 0.65);
+}
+
+.err-inline {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: rgba(255, 111, 177, 0.18);
+  color: var(--pink);
+  border: 1px solid rgba(255, 111, 177, 0.45);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
 
 /* ==========================================================================
    SaaS Product Overview Landing Page (`SaasOverview.tsx`)
+   Authentic GrowthX Rhythm: Cobalt (#2958D4) -> Plum-Night (#21182D) -> Cobalt -> Cool Porcelain (#F4F2F8) -> Night
    ========================================================================== */
 
 .gx-hero {
-  background: var(--blue);
+  background: radial-gradient(circle at 50% 0%, #3b6df0 0%, var(--blue) 62%, #1f47b8 100%);
   color: var(--white);
   text-align: center;
-  padding: 44px 24px 128px;
+  padding: 48px 24px 132px;
   position: relative;
   overflow: hidden;
 }
@@ -317,27 +355,26 @@ input[type='range'] {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--night);
-  color: var(--yellow);
-  border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
+  letter-spacing: 0.05em;
+  background: rgba(22, 18, 28, 0.45);
+  color: var(--cream);
+  border: 1px solid rgba(255, 255, 255, 0.26);
   border-radius: 999px;
   padding: 6px 14px;
 }
 
 .gx-hero-wordmark {
   display: block;
-  width: min(560px, 92%);
+  width: min(550px, 92%);
   height: auto;
-  margin: 14px auto 0;
+  margin: 16px auto 0;
 }
 
 .gx-hero h1 {
-  font-size: clamp(32px, 4.3vw, 52px);
+  font-size: clamp(32px, 4.2vw, 50px);
   font-weight: 800;
   color: var(--cream);
   max-width: 22ch;
@@ -348,8 +385,8 @@ input[type='range'] {
 .gx-hero-sub {
   max-width: 52ch;
   margin: 16px auto 0;
-  font-size: 17.5px;
-  color: #eef2ff;
+  font-size: 17px;
+  color: #e8eeff;
   line-height: 1.55;
 }
 
@@ -362,19 +399,23 @@ input[type='range'] {
 }
 
 .gx-hero-ctas .gx-cta-big {
-  min-height: 52px;
+  min-height: 50px;
   padding: 0 28px;
-  font-size: 16.5px;
-  box-shadow: 4px 4px 0 var(--ink);
+  font-size: 16px;
 }
 
 .gx-hero-ctas .gx-cta-sec {
-  min-height: 52px;
+  min-height: 50px;
   padding: 0 24px;
-  font-size: 16px;
-  background: var(--white);
-  color: var(--ink);
-  box-shadow: 4px 4px 0 var(--ink);
+  font-size: 15.5px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+  border: 1.5px solid rgba(255, 255, 255, 0.32);
+}
+
+.gx-hero-ctas .gx-cta-sec:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--white);
 }
 
 .gx-star-float {
@@ -414,24 +455,23 @@ input[type='range'] {
   width: auto;
 }
 
-/* Signature -2deg Lime Ticker Tape */
+/* Signature -1.8deg Lime Ticker Tape */
 .gx-ticker {
   z-index: 5;
   background: var(--lime);
   color: var(--ink);
-  border-block: 2.5px solid var(--ink);
+  border-block: 2px solid var(--ink);
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   margin: -24px -12px 0;
-  padding-block: 12px;
+  padding-block: 11px;
   position: relative;
   overflow: hidden;
   transform: rotate(-1.6deg);
-  box-shadow: 0 4px 0 rgba(22, 18, 28, 0.12);
 }
 
 .gx-ticker-track {
@@ -448,7 +488,17 @@ input[type='range'] {
 }
 
 .gx-section {
-  padding: 68px 24px;
+  padding: 76px 24px;
+}
+
+.gx-night-band {
+  background: var(--night);
+  color: var(--cream);
+}
+
+.gx-porcelain-band {
+  background: var(--porcelain);
+  color: var(--ink);
 }
 
 .gx-container {
@@ -464,12 +514,16 @@ input[type='range'] {
 
 .gx-sec-lead {
   font-size: 16.5px;
-  color: var(--muted);
+  color: var(--muted-on-dark);
   max-width: 58ch;
-  margin-bottom: 32px;
+  margin-bottom: 36px;
 }
 
-/* Tilted Tactile Proof Deck Cards (_pcard) */
+.gx-porcelain-band .gx-sec-lead {
+  color: var(--muted-on-light);
+}
+
+/* Tilted Color-Blocked Proof Deck Cards on Deep Plum-Night (#21182D) — exact _what_fa47f19 match! */
 .gx-deck {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -488,21 +542,21 @@ input[type='range'] {
   border-radius: 20px;
   padding: 22px 20px 24px;
   color: var(--ink);
-  box-shadow: 5px 5px 0 var(--ink);
+  box-shadow: 6px 6px 0 #0b0811;
   display: flex;
   flex-direction: column;
   transition: transform 260ms var(--ease-spring), box-shadow 260ms var(--ease-spring);
 }
 
 .gx-pcard:hover {
-  transform: translateY(-6px) rotate(0deg) !important;
-  box-shadow: 9px 10px 0 var(--ink);
+  transform: translateY(-7px) rotate(0deg) !important;
+  box-shadow: 10px 12px 0 #0b0811;
 }
 
 .gx-big-num {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 56px;
+  font-size: 54px;
   line-height: 0.92;
   letter-spacing: -0.04em;
   color: var(--white);
@@ -521,14 +575,14 @@ input[type='range'] {
 .gx-pcard p {
   font-size: 14.5px;
   line-height: 1.48;
-  color: #261f30;
+  color: #241d2f;
 }
 
-/* Cobalt Blue Problem/Solution Split Section (_about) */
+/* Electric Cobalt Problem/Mechanism Split Section (_about_fa47f19) */
 .gx-blue-band {
   background: var(--blue);
   color: var(--white);
-  border-block: 2.5px solid var(--ink);
+  border-block: 2px solid var(--ink);
 }
 
 .gx-about-grid {
@@ -545,14 +599,41 @@ input[type='range'] {
 .gx-strike-line {
   font-size: 18px;
   font-weight: 600;
-  margin-top: 20px;
+  margin-top: 18px;
   line-height: 1.55;
 }
 
 .gx-strike-line s {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.72);
   text-decoration-color: var(--yellow);
   text-decoration-thickness: 2.5px;
+}
+
+/* Extracted directly from _room_fa47f19 li in QjKJLhgN.css */
+.gx-glass-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.gx-glass-list li {
+  font-size: 14.5px;
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  padding: 10px 14px 10px 36px;
+  position: relative;
+}
+
+.gx-glass-list li::before {
+  content: '→';
+  color: var(--yellow);
+  font-weight: 700;
+  position: absolute;
+  left: 13px;
+  top: 9px;
 }
 
 .gx-beats {
@@ -571,7 +652,7 @@ input[type='range'] {
 
 .gx-beat:hover {
   transform: translateY(-3px);
-  box-shadow: 7px 8px 0 var(--ink);
+  box-shadow: 8px 9px 0 var(--ink);
 }
 
 .gx-beat h3 {
@@ -585,15 +666,9 @@ input[type='range'] {
   color: #2b2433;
 }
 
-/* 5-Step Pipeline & Sarvam Verification Card (_how + _verify) */
-.gx-cream2-band {
-  background: var(--cream2);
-  border-bottom: 2.5px solid var(--ink);
-}
-
+/* Cool Porcelain (#F4F2F8) 5-Step Pipeline & Sarvam Verification Card */
 .gx-steps {
   list-style: none;
-  counter-reset: gxstep;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 24px;
@@ -604,8 +679,18 @@ input[type='range'] {
 }
 
 .gx-step {
-  counter-increment: gxstep;
   position: relative;
+}
+
+@media (min-width: 961px) {
+  .gx-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 23px;
+    left: 56px;
+    right: -16px;
+    border-top: 2px dashed rgba(22, 18, 28, 0.28);
+  }
 }
 
 .gx-step-num {
@@ -613,14 +698,17 @@ input[type='range'] {
   height: 46px;
   border-radius: 50%;
   background: var(--yellow);
+  color: var(--ink);
   border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 19px;
+  font-size: 18px;
   display: grid;
   place-items: center;
   margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 .gx-step:last-child .gx-step-num {
@@ -636,24 +724,35 @@ input[type='range'] {
 
 .gx-step p {
   font-size: 14.5px;
-  color: var(--muted);
+  color: var(--muted-on-light);
 }
 
 .gx-verify-card {
-  margin-top: 40px;
+  margin-top: 42px;
   background: var(--white);
-  border: 2.5px solid var(--ink);
-  box-shadow: 5px 5px 0 var(--ink);
-  border-radius: 20px;
-  padding: 28px 30px;
+  color: var(--ink);
+  border: 2px solid var(--porcelain-line);
+  box-shadow: 0 16px 40px rgba(22, 18, 28, 0.08);
+  border-radius: 22px;
+  padding: 30px 32px;
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 28px;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 30px;
   align-items: center;
 }
 
 @media (max-width: 900px) {
   .gx-verify-card { grid-template-columns: 1fr; padding: 22px; }
+}
+
+.gx-verify-card button:not(.btn-arm) {
+  background: var(--porcelain);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+}
+
+.gx-verify-card button:not(.btn-arm):hover {
+  background: #e9e5f3;
 }
 
 .gx-tag-pill {
@@ -683,36 +782,41 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .gx-path-pills li span {
-  background: var(--cream);
-  border: 1.5px solid var(--ink);
+  background: var(--porcelain);
+  color: var(--ink);
+  border: 1.5px solid #d5cfe3;
   border-radius: 999px;
   padding: 6px 12px;
 }
 
 .gx-path-pills li.highlight span {
-  background: var(--green);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: var(--blue);
+  color: var(--white);
+  border-color: var(--blue);
 }
 
+/* Dark SaaS Terminal Card on right of Verify Card (matches _mock_9d9c405 in BNtQXQqY.css) */
 .gx-fact-stack {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .gx-fact-box {
-  background: var(--cream);
-  border: 2px solid var(--ink);
-  border-radius: 14px;
-  padding: 13px 15px;
+  background: var(--night);
+  color: var(--text-on-dark);
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  padding: 15px 17px;
 }
 
-.gx-fact-box.lime {
-  background: var(--lime);
+.gx-fact-box.cobalt {
+  background: var(--blue);
+  color: var(--white);
 }
 
 .gx-fact-box h4 {
@@ -721,10 +825,11 @@ input[type='range'] {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 5px;
+  color: var(--yellow);
+  margin-bottom: 6px;
 }
 
-/* FAQ Details Accordions */
+/* Night FAQ Accordions */
 .gx-faq-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -736,17 +841,17 @@ input[type='range'] {
 }
 
 .gx-faq-grid details {
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
-  border-radius: 14px;
+  background: var(--night-elevated);
+  border: 1px solid var(--night-border-strong);
+  border-radius: 16px;
 }
 
 .gx-faq-grid summary {
   cursor: pointer;
-  padding: 14px 18px;
+  padding: 16px 20px;
   font-weight: 700;
   font-size: 15.5px;
+  color: var(--white);
   list-style: none;
   display: flex;
   justify-content: space-between;
@@ -762,7 +867,7 @@ input[type='range'] {
   content: '+';
   font-family: var(--font-mono);
   font-size: 20px;
-  font-weight: 500;
+  color: var(--yellow);
 }
 
 .gx-faq-grid details[open] summary::after {
@@ -770,38 +875,89 @@ input[type='range'] {
 }
 
 .gx-faq-grid details p {
-  padding: 0 18px 16px;
-  color: var(--muted);
+  padding: 0 20px 18px;
+  color: var(--muted-on-dark);
   font-size: 14.5px;
 }
 
 .gx-footer {
   background: var(--blue);
   color: #dce4ff;
-  border-top: 2.5px solid var(--ink);
-  padding: 40px 24px;
-  text-align: center;
+  border-top: 2px solid var(--ink);
+  padding: 36px 24px;
 }
 
 /* ==========================================================================
-   Dense Operational SaaS Workspace (Live Room Console, Benchmark & Caregiver)
-   Extrapolated cleanly per surface-adaptation-and-anti-slop.md
+   Live Operational SaaS Console (`App.tsx`, `BenchmarkPanel`, `CaregiverView`)
+   Cobalt Command Band + Unified Telemetry Ribbon + Deep Plum-Night SaaS Cards
    ========================================================================== */
 
-.shell {
-  max-width: 1420px;
-  margin: 0 auto;
-  padding: 16px 20px 36px;
+/* Signature Electric Cobalt Command Header Strip */
+.console-command-band {
+  background: linear-gradient(135deg, var(--blue) 0%, #1e45b5 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 14px 20px;
 }
 
-.err-inline {
+.console-command-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.console-command-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.console-command-title h1 {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--white);
+  letter-spacing: -0.02em;
+}
+
+.console-command-title span {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  background: var(--pink);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.console-command-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Glass controls sitting cleanly on the Cobalt Command Band */
+.console-command-controls button:not(.btn-arm) {
+  background: rgba(14, 11, 22, 0.28);
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.console-command-controls button:not(.btn-arm):hover:not(:disabled) {
+  background: rgba(14, 11, 22, 0.46);
+  border-color: rgba(255, 255, 255, 0.48);
+}
+
+.console-command-controls button.pill-on {
+  background: var(--cream);
   color: var(--ink);
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
-  padding: 3px 10px;
+  border-color: var(--ink);
+}
+
+.shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
 }
 
 .pair-bar,
@@ -812,97 +968,111 @@ input[type='range'] {
   justify-content: space-between;
   gap: 14px;
   padding: 12px 16px;
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
-  border-radius: 16px;
+  background: var(--night-card);
+  border: 1px solid var(--night-border-strong);
+  border-radius: 14px;
   margin-bottom: 14px;
 }
 
 .pair-bar {
-  background: var(--lime);
+  background: rgba(228, 242, 92, 0.1);
+  border-color: rgba(228, 242, 92, 0.35);
 }
 
 .ctrl-inline {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
+  font-weight: 500;
+  color: var(--text-on-dark);
 }
 
-/* KPI Strip */
+/* Unified Architectural Telemetry Ribbon (replaces 5 separate neo-brutalist bricks!) */
 .metric-bar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  background: var(--night-card);
+  border: 1px solid var(--night-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 980px) {
   .metric-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.metric-cell,
-.readout {
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
-  border-radius: 14px;
-  padding: 10px 14px;
+.metric-cell {
+  padding: 12px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
+.metric-cell:last-child {
+  border-right: none;
+}
+
+.readout {
+  background: var(--obsidian);
+  border: 1px solid var(--night-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
 .readout-k {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0.05em;
+  color: var(--muted-on-dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .metric-val,
 .readout-v {
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--ink);
-  margin-top: 2px;
+  color: var(--white);
+  margin-top: 4px;
 }
 
 .metric-val.teal,
 .readout-v.teal {
-  color: var(--blue);
+  color: var(--green-bright);
 }
 
 .metric-val.amber,
 .readout-v.amber {
-  color: #b45309;
+  color: var(--yellow);
 }
 
 .metric-val.red,
 .readout-v.red {
-  color: #be123c;
+  color: var(--pink);
 }
 
 .readout-sub {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--muted);
-  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted-on-dark);
+  margin-top: 3px;
 }
 
 /* 2-Column Live Workspace */
 .console-layout {
   display: grid;
-  grid-template-columns: 1.55fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1.58fr 1fr;
+  gap: 16px;
   align-items: start;
 }
 
@@ -913,26 +1083,22 @@ input[type='range'] {
 .scopes-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 @media (max-width: 720px) {
   .scopes-grid { grid-template-columns: 1fr; }
 }
 
-/* Operational SaaS Cards */
-.panel {
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: 4px 4px 0 var(--ink);
-  border-radius: 18px;
-  padding: 14px 16px;
-}
-
-/* Scientific Acoustic Viewport Panels sit on Offcampus --night (#21182d) */
+/* Cohesive Plum-Night SaaS Cards */
+.panel,
 .panel.night-panel {
-  background: var(--night);
-  color: var(--cream);
+  background: var(--night-card);
+  color: var(--text-on-dark);
+  border: 1px solid var(--night-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 28px rgba(0, 0, 0, 0.28);
+  border-radius: 18px;
+  padding: 15px 17px;
 }
 
 .panel-head {
@@ -941,53 +1107,45 @@ input[type='range'] {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1.5px dashed rgba(22, 18, 28, 0.22);
-}
-
-.panel.night-panel .panel-head {
-  border-bottom-color: rgba(255, 244, 193, 0.18);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .panel-title {
   font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.01em;
-  color: inherit;
+  color: var(--white);
 }
 
 .panel-meta {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--muted);
+  color: var(--muted-on-dark);
   font-variant-numeric: tabular-nums;
 }
 
-.panel.night-panel .panel-meta {
-  color: #cbbce0;
-}
-
 .spatial-panel {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 canvas.scope-canvas {
   width: 100%;
   height: 154px;
   display: block;
-  background: #0d0814;
-  border: 2px solid var(--ink);
+  background: #090610;
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 10px;
 }
 
 canvas.spatial-canvas {
   width: 100%;
-  height: 360px;
+  height: 365px;
   display: block;
-  background: #0d0814;
-  border: 2px solid var(--ink);
+  background: #090610;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   cursor: grab;
   touch-action: none;
@@ -1000,10 +1158,10 @@ canvas.spatial-canvas:active {
 canvas.ironbow-canvas {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 410px;
+  max-height: 415px;
   display: block;
-  background: #090414;
-  border: 2px solid var(--ink);
+  background: #080412;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   object-fit: contain;
 }
@@ -1014,7 +1172,7 @@ canvas.ironbow-canvas {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 11px;
 }
 
 .primitives-list {
@@ -1029,47 +1187,48 @@ canvas.ironbow-canvas {
   font-weight: 500;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--cream);
-  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-on-dark);
 }
 
 .prim-active {
-  background: var(--green);
-  color: var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: rgba(28, 228, 148, 0.16);
+  color: var(--green-bright);
+  border-color: rgba(28, 228, 148, 0.45);
 }
 
 .prim-alert {
-  background: var(--pink);
-  color: var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
+  background: rgba(255, 111, 177, 0.2);
+  color: var(--pink);
+  border-color: rgba(255, 111, 177, 0.5);
 }
 
 .prim-dim {
-  background: rgba(255, 244, 193, 0.12);
-  color: #cbbce0;
-  border-color: rgba(255, 244, 193, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted-on-dark);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .honesty-tag {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #cbbce0;
+  color: var(--muted-on-dark);
 }
 
 /* Right Column Malayalam Check-In & Caregiver Dispatch */
 .triage-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .live-dialogue {
-  background: var(--cream2);
-  border: 2px solid var(--ink);
-  border-radius: 14px;
-  padding: 12px 14px;
+  background: var(--obsidian);
+  border: 1px solid rgba(185, 162, 255, 0.2);
+  border-left: 3px solid var(--blue);
+  border-radius: 12px;
+  padding: 13px 15px;
 }
 
 .dialogue-row {
@@ -1081,52 +1240,56 @@ canvas.ironbow-canvas {
 
 .dialogue-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0.05em;
+  color: var(--lilac);
   margin-bottom: 4px;
 }
 
 .incident-card {
-  border: 2px solid var(--ink);
-  background: var(--cream);
+  border: 1px solid var(--night-border);
+  background: var(--obsidian);
   border-radius: 14px;
-  box-shadow: 3px 3px 0 var(--ink);
-  padding: 12px 14px;
+  padding: 13px 15px;
   margin-top: 10px;
 }
 
 .incident-card.sev-EMERGENCY,
 .incident-card.sev-UNRESPONSIVE {
-  background: #ffe8f3;
+  border-left: 3px solid var(--pink);
+  background: rgba(255, 111, 177, 0.06);
 }
 
 .incident-card.sev-SAFE {
-  background: #e7fbf2;
+  border-left: 3px solid var(--green-bright);
+  background: rgba(28, 228, 148, 0.05);
 }
 
 .badge {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
 }
 
 .badge.SAFE {
-  background: var(--green);
-  color: var(--ink);
+  background: rgba(28, 228, 148, 0.16);
+  color: var(--green-bright);
+  border-color: rgba(28, 228, 148, 0.42);
 }
 
 .badge.EMERGENCY,
 .badge.UNRESPONSIVE {
-  background: var(--pink);
-  color: var(--ink);
+  background: rgba(255, 111, 177, 0.2);
+  color: var(--pink);
+  border-color: rgba(255, 111, 177, 0.48);
 }
 
 .trace-table {
@@ -1142,11 +1305,11 @@ canvas.ironbow-canvas {
 .trace-table td {
   text-align: left;
   padding: 5px 6px;
-  border-bottom: 1px dashed rgba(22, 18, 28, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .trace-table th {
-  color: var(--muted);
+  color: var(--muted-on-dark);
   font-weight: 500;
 }
 
@@ -1154,8 +1317,8 @@ canvas.ironbow-canvas {
 .readout-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 720px) {
@@ -1170,17 +1333,18 @@ canvas.ironbow-canvas {
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   margin-top: 10px;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--night-border-strong);
   border-radius: 12px;
   overflow: hidden;
 }
 
 .matrix-table th,
 .matrix-table td {
-  border-right: 1.5px solid var(--ink);
-  border-bottom: 1.5px solid var(--ink);
-  padding: 9px 10px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 12px;
   text-align: center;
+  color: var(--text-on-dark);
 }
 
 .matrix-table tr:last-child th,
@@ -1194,46 +1358,45 @@ canvas.ironbow-canvas {
 }
 
 .matrix-table th {
-  background: var(--cream2);
-  color: var(--ink);
+  background: var(--obsidian);
+  color: var(--muted-on-dark);
   font-size: 11px;
   font-weight: 500;
 }
 
 .cell-diag {
-  background: var(--green);
-  color: var(--ink);
+  background: rgba(28, 228, 148, 0.22);
+  color: var(--green-bright);
   font-weight: 700;
 }
 
 .cell-err {
-  background: var(--pink);
-  color: var(--ink);
+  background: rgba(255, 111, 177, 0.22);
+  color: var(--pink);
   font-weight: 700;
 }
 
 .caregiver-shell {
-  max-width: 740px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 16px 16px 40px;
+  padding: 18px 16px 44px;
 }
 
 .cg-alert-banner {
-  background: var(--pink);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  box-shadow: 4px 4px 0 var(--ink);
+  background: rgba(255, 111, 177, 0.16);
+  color: var(--white);
+  border: 1.5px solid var(--pink);
   border-radius: 16px;
   padding: 14px 16px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .cg-input {
   flex: 1;
   min-width: 210px;
-  background: var(--cream);
-  color: var(--ink);
-  border: 2px solid var(--ink);
+  background: var(--obsidian);
+  color: var(--white);
+  border: 1px solid var(--night-border-strong);
   border-radius: 999px;
   padding: 8px 16px;
   font-family: var(--font-sans);

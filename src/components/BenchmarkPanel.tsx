@@ -147,7 +147,7 @@ export const BenchmarkPanel: React.FC<Props> = ({
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          Houseboat acoustic evaluation · 4×4 confusion matrix (n = {summary.trials.length})
+          4×4 confusion matrix · {summary.trials.length} recorded trials
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={exportJson} disabled={summary.trials.length === 0}>
@@ -167,14 +167,14 @@ export const BenchmarkPanel: React.FC<Props> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 14px',
-          background: 'var(--cream2)',
-          border: '2px solid var(--ink)',
+          background: 'var(--obsidian)',
+          border: '1px solid var(--night-border-strong)',
           borderRadius: 14,
           marginBottom: 12,
         }}
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+          <span className="mono" style={{ fontSize: 11.5, color: 'var(--muted-on-dark)' }}>
             Ground truth:
           </span>
           {CLASSES.map((c) => (
@@ -203,8 +203,11 @@ export const BenchmarkPanel: React.FC<Props> = ({
         </button>
       </div>
 
-      <div className="mono" style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-        Protocol for <strong style={{ color: 'var(--ink)' }}>{activeSpec.label}</strong>:{' '}
+      <div
+        className="mono"
+        style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 14 }}
+      >
+        Protocol for <strong style={{ color: 'var(--white)' }}>{activeSpec.label}</strong>:{' '}
         {activeSpec.protocol}
       </div>
 
@@ -238,7 +241,7 @@ export const BenchmarkPanel: React.FC<Props> = ({
         <tbody>
           {CLASSES.map((row) => (
             <tr key={row.id}>
-              <th style={{ textAlign: 'left' }}>{row.label}</th>
+              <th style={{ textAlign: 'left', color: 'var(--white)' }}>{row.label}</th>
               {CLASSES.map((col) => {
                 const count = summary.matrix?.[row.id]?.[col.id] ?? 0;
                 const cls =

@@ -1,4 +1,9 @@
 import http from 'node:http';
+import https from 'node:https';
+import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import express from 'express';
@@ -29,25 +34,116 @@ import type {
 } from '../src/types.js';
 
 const PORT = Number(process.env.PORT || 3001);
+const HTTPS_PORT = Number(process.env.HTTPS_PORT || 5443);
+const VITE_DEV_PORT = Number(process.env.VITE_PORT || 5173);
 
 function getLanIps(): string[] {
   const nets = os.networkInterfaces();
   const ips: string[] = [];
   for (const entries of Object.values(nets)) {
     if (!entries) continue;
-    for (const net of entries) {
-      if ((net.family === 'IPv4' || (net.family as unknown) === 4) && !net.internal && net.address) {
-        ips.push(net.address);
+    for (const netIf of entries) {
+      if (
+        (netIf.family === 'IPv4' || (netIf.family as unknown) === 4) &&
+        !netIf.internal &&
+        netIf.address
+      ) {
+        ips.push(netIf.address);
       }
     }
   }
   return Array.from(new Set(ips));
 }
 
-type HubClientRole = 'room' | 'caregiver' | 'unknown';
+function ensureLanTlsCert(lanIps: string[]): { key: Buffer; cert: Buffer } | null {
+  try {
+    const dataDir = path.resolve(process.cwd(), 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    const keyPath = path.join(dataDir, 'lan-tls-key.pem');
+    const certPath = path.join(dataDir, 'lan-tls-cert.pem');
+    const metaPath = path.join(dataDir, 'lan-tls-ips.txt');
+    const ipSig = ['127.0.0.1', ...lanIps].sort().join(',');
 
-const hubClients = new Map<WebSocket, { role: HubClientRole; connectedAt: number }>();
+    if (
+      !fs.existsSync(keyPath) ||
+      !fs.existsSync(certPath) ||
+      !fs.existsSync(metaPath) ||
+      fs.readFileSync(metaPath, 'utf8').trim() !== ipSig
+    ) {
+      const sanEntries = ['DNS:localhost', 'IP:127.0.0.1', ...lanIps.map((ip) => `IP:${ip}`)].join(
+        ','
+      );
+      execFileSync(
+        'openssl',
+        [
+          'req',
+          '-x509',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-sha256',
+          '-days',
+          '365',
+          '-subj',
+          '/CN=kaaval-lan.local',
+          '-addext',
+          `subjectAltName=${sanEntries}`,
+          '-keyout',
+          keyPath,
+          '-out',
+          certPath,
+        ],
+        { stdio: 'ignore' }
+      );
+      fs.writeFileSync(metaPath, ipSig, 'utf8');
+    }
+
+    return {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    };
+  } catch (err) {
+    console.warn('[kaaval] Could not auto-generate LAN HTTPS cert:', (err as Error).message);
+    return null;
+  }
+}
+
+type HubClientRole = 'room' | 'caregiver' | 'satellite' | 'unknown';
+
+const hubClients = new Map<
+  WebSocket,
+  {
+    role: HubClientRole;
+    connectedAt: number;
+    satArmed?: boolean;
+    satTelemetry?: unknown;
+  }
+>();
 let latestRoomTelemetry: unknown = null;
+
+function getActiveSatelliteState() {
+  let connected = false;
+  let armed = false;
+  let latestTelemetry: unknown = null;
+  for (const meta of hubClients.values()) {
+    if (meta.role === 'satellite') {
+      connected = true;
+      if (meta.satArmed) armed = true;
+      if (meta.satTelemetry) latestTelemetry = meta.satTelemetry;
+    }
+  }
+  return { connected, armed, telemetry: latestTelemetry };
+}
+
+function broadcastSatelliteStatus() {
+  const st = getActiveSatelliteState();
+  broadcastHub({
+    type: 'satellite_status',
+    connected: st.connected,
+    armed: st.armed,
+    telemetry: st.telemetry,
+  });
+}
 
 function broadcastHub(payload: unknown, excludeClient?: WebSocket) {
   const serialized = JSON.stringify(payload);
@@ -75,6 +171,8 @@ app.get('/api/lan-info', (_req, res) => {
   res.json({
     lanIps: getLanIps(),
     port: PORT,
+    httpsPort: HTTPS_PORT,
+    httpsReady: httpsGatewayReady,
   });
 });
 
@@ -285,35 +383,45 @@ app.delete('/api/benchmark', (_req, res) => {
   res.json(clearBenchmarkTrials());
 });
 
+let httpsGatewayReady = false;
 const server = http.createServer(app);
 
 const sttWss = new WebSocketServer({ noServer: true });
 const hubWss = new WebSocketServer({ noServer: true });
 
-server.on('upgrade', (req, socket, head) => {
+function handleLocalWsUpgrade(
+  req: http.IncomingMessage,
+  socket: net.Socket,
+  head: Buffer
+): boolean {
   let pathname = '/';
   try {
     pathname = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`).pathname;
   } catch {
-    socket.destroy();
-    return;
+    return false;
   }
 
   if (pathname === '/ws/stt') {
     sttWss.handleUpgrade(req, socket, head, (ws) => {
       sttWss.emit('connection', ws, req);
     });
-    return;
+    return true;
   }
 
   if (pathname === '/ws/hub') {
     hubWss.handleUpgrade(req, socket, head, (ws) => {
       hubWss.emit('connection', ws, req);
     });
-    return;
+    return true;
   }
 
-  socket.destroy();
+  return false;
+}
+
+server.on('upgrade', (req, socket, head) => {
+  if (!handleLocalWsUpgrade(req, socket as net.Socket, head)) {
+    socket.destroy();
+  }
 });
 
 hubWss.on('connection', (clientWs, req) => {
@@ -321,18 +429,37 @@ hubWss.on('connection', (clientWs, req) => {
   try {
     const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const roleParam = parsedUrl.searchParams.get('role');
-    if (roleParam === 'room' || roleParam === 'caregiver') {
+    if (roleParam === 'room' || roleParam === 'caregiver' || roleParam === 'satellite') {
       initialRole = roleParam;
     }
   } catch {
     initialRole = 'unknown';
   }
 
-  const meta = { role: initialRole, connectedAt: Date.now() };
+  const meta: {
+    role: HubClientRole;
+    connectedAt: number;
+    satArmed?: boolean;
+    satTelemetry?: unknown;
+  } = { role: initialRole, connectedAt: Date.now(), satArmed: false };
   hubClients.set(clientWs, meta);
 
   if (latestRoomTelemetry !== null && clientWs.readyState === WebSocket.OPEN) {
     clientWs.send(JSON.stringify({ type: 'room_telemetry', data: latestRoomTelemetry }));
+  }
+
+  if (initialRole === 'satellite') {
+    broadcastSatelliteStatus();
+  } else if (clientWs.readyState === WebSocket.OPEN) {
+    const satState = getActiveSatelliteState();
+    clientWs.send(
+      JSON.stringify({
+        type: 'satellite_status',
+        connected: satState.connected,
+        armed: satState.armed,
+        telemetry: satState.telemetry,
+      })
+    );
   }
 
   clientWs.on('message', (raw, isBinary) => {
@@ -341,12 +468,14 @@ hubWss.on('connection', (clientWs, req) => {
       const msg = JSON.parse(raw.toString()) as {
         type?: string;
         role?: string;
-        data?: unknown;
+        paused?: boolean;
+        data?: { armed?: boolean } & Record<string, unknown>;
       };
 
       if (msg.type === 'register' || msg.type === 'hello') {
-        if (msg.role === 'room' || msg.role === 'caregiver') {
+        if (msg.role === 'room' || msg.role === 'caregiver' || msg.role === 'satellite') {
           meta.role = msg.role;
+          if (msg.role === 'satellite') broadcastSatelliteStatus();
         }
         return;
       }
@@ -355,6 +484,32 @@ hubWss.on('connection', (clientWs, req) => {
         meta.role = 'room';
         latestRoomTelemetry = msg.data ?? null;
         broadcastHub({ type: 'room_telemetry', data: msg.data }, clientWs);
+        return;
+      }
+
+      if (msg.type === 'satellite_telemetry' && msg.data) {
+        const prevArmed = Boolean(meta.satArmed);
+        meta.role = 'satellite';
+        meta.satArmed = Boolean(msg.data.armed);
+        meta.satTelemetry = msg.data;
+        broadcastHub({ type: 'satellite_telemetry', data: msg.data }, clientWs);
+        if (prevArmed !== meta.satArmed) {
+          broadcastSatelliteStatus();
+        }
+        return;
+      }
+
+      if (msg.type === 'room_voice_gate') {
+        // Pause/resume satellite ultrasonic chirp cleanly during Malayalam TTS/STT window
+        const payload = JSON.stringify({
+          type: 'room_voice_gate',
+          paused: Boolean(msg.paused),
+        });
+        for (const [peer, peerMeta] of hubClients.entries()) {
+          if (peerMeta.role === 'satellite' && peer.readyState === WebSocket.OPEN) {
+            peer.send(payload);
+          }
+        }
       }
     } catch {
       // Ignore malformed JSON frames
@@ -362,11 +517,15 @@ hubWss.on('connection', (clientWs, req) => {
   });
 
   clientWs.on('close', () => {
+    const wasSat = meta.role === 'satellite';
     hubClients.delete(clientWs);
+    if (wasSat) broadcastSatelliteStatus();
   });
 
   clientWs.on('error', () => {
+    const wasSat = meta.role === 'satellite';
     hubClients.delete(clientWs);
+    if (wasSat) broadcastSatelliteStatus();
   });
 });
 
@@ -534,3 +693,77 @@ server.listen(PORT, '0.0.0.0', () => {
     warmPromptCache();
   }
 });
+
+// Start Secure HTTPS + WSS Satellite Gateway on :5443 so POCO M2 Pro (Android Chrome) unlocks getUserMedia!
+const tlsCreds = ensureLanTlsCert(getLanIps());
+if (tlsCreds) {
+  const httpsServer = https.createServer(tlsCreds, (req, res) => {
+    const urlStr = req.url || '/';
+    if (urlStr.startsWith('/api/')) {
+      app(req, res);
+      return;
+    }
+
+    // Reverse-proxy frontend & AudioWorklet requests to Vite dev server (:5173)
+    const proxyReq = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: VITE_DEV_PORT,
+        path: urlStr,
+        method: req.method,
+        headers: {
+          ...req.headers,
+          host: `127.0.0.1:${VITE_DEV_PORT}`,
+        },
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+        proxyRes.pipe(res);
+      }
+    );
+
+    proxyReq.on('error', () => {
+      res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Kaaval HTTPS Gateway: start Vite client (`npm run dev:client`) on port 5173.');
+    });
+
+    req.pipe(proxyReq);
+  });
+
+  httpsServer.on('upgrade', (req, socket, head) => {
+    const netSock = socket as net.Socket;
+    if (handleLocalWsUpgrade(req, netSock, head)) {
+      return;
+    }
+
+    // Tunnel Vite HMR WebSockets transparently over WSS
+    const upstream = net.connect(VITE_DEV_PORT, '127.0.0.1', () => {
+      const reqLines = [`${req.method || 'GET'} ${req.url || '/'} HTTP/${req.httpVersion}`];
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        reqLines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+      }
+      reqLines.push('', '');
+      upstream.write(reqLines.join('\r\n'));
+      if (head && head.length > 0) upstream.write(head);
+      upstream.pipe(netSock);
+      netSock.pipe(upstream);
+    });
+
+    upstream.on('error', () => netSock.destroy());
+    netSock.on('error', () => upstream.destroy());
+  });
+
+  httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+    httpsGatewayReady = true;
+    const lanIps = getLanIps();
+    const satUrl =
+      lanIps.length > 0
+        ? `https://${lanIps[0]}:${HTTPS_PORT}/satellite`
+        : `https://localhost:${HTTPS_PORT}/satellite`;
+    console.log(`[kaaval-https] POCO M2 Pro Satellite Sonar ready at ${satUrl}`);
+  });
+
+  httpsServer.on('error', (err) => {
+    console.warn('[kaaval-https] Port 5443 unavailable:', err.message);
+  });
+}

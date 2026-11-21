@@ -140,7 +140,7 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
   return (
     <div>
       <header className="gx-nav-wrap">
-        <nav className="gx-nav" style={{ maxWidth: 740 }}>
+        <nav className="gx-nav" style={{ maxWidth: 760 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
             <KaavalNavbarBrand onClick={onBackToConsole} />
             <span className="status-inline">
@@ -151,16 +151,25 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
 
           {onBackToConsole && (
             <button type="button" onClick={onBackToConsole}>
-              Back to room console
+              Room console
             </button>
           )}
         </nav>
       </header>
 
+      <div className="console-command-band">
+        <div className="console-command-inner" style={{ maxWidth: 760 }}>
+          <div className="console-command-title">
+            <h1>Caregiver mobile companion</h1>
+            <span>കുടുംബ കണ്ണി · Two-way Malayalam room voice bridge</span>
+          </div>
+        </div>
+      </div>
+
       <div className="caregiver-shell">
         {latestEmergency && (
           <div className="cg-alert-banner">
-            <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink)' }}>
+            <div className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--pink)' }}>
               Active {latestEmergency.classification.toLowerCase()} alert ·{' '}
               {new Date(latestEmergency.timestampIso).toLocaleTimeString()}
             </div>
@@ -246,7 +255,12 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
           {lastSpokenMl && (
             <div
               className="ml"
-              style={{ marginTop: 10, fontSize: 13, color: 'var(--blue)', fontWeight: 600 }}
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: 'var(--green-bright)',
+                fontWeight: 600,
+              }}
             >
               Spoken aloud in room: &ldquo;{lastSpokenMl}&rdquo;
             </div>
@@ -262,7 +276,7 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
           {incidents.length === 0 ? (
             <div
               className="mono"
-              style={{ color: 'var(--muted)', fontSize: 12, padding: '8px 2px' }}
+              style={{ color: 'var(--muted-on-dark)', fontSize: 12, padding: '8px 2px' }}
             >
               Quiet baseline — false alarms verified safe in Malayalam do not wake you.
             </div>
@@ -282,7 +296,7 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                       ? 'Safe · Auto-dismissed'
                       : inc.classification}
                   </span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
                     {new Date(inc.timestampIso).toLocaleTimeString()} ·{' '}
                     {inc.distanceMeters.toFixed(2)}m
                     {typeof inc.azimuthDeg === 'number'
@@ -299,7 +313,7 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                       style={{
                         width: 112,
                         height: 63,
-                        border: '2px solid var(--ink)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
                         borderRadius: 8,
                         flexShrink: 0,
                       }}
@@ -310,15 +324,18 @@ export const CaregiverView: React.FC<{ onBackToConsole?: () => void }> = ({
                       style={{
                         fontSize: 13.5,
                         fontWeight: 600,
-                        color: 'var(--ink)',
+                        color: 'var(--white)',
                         marginBottom: 4,
                       }}
                     >
                       {inc.clinicalSummaryEn}
                     </div>
                     {inc.transcriptMl && (
-                      <div className="mono" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                        <span className="ml" style={{ color: 'var(--ink)', fontWeight: 600 }}>
+                      <div
+                        className="mono"
+                        style={{ fontSize: 11.5, color: 'var(--muted-on-dark)' }}
+                      >
+                        <span className="ml" style={{ color: 'var(--white)', fontWeight: 600 }}>
                           &ldquo;{inc.transcriptMl}&rdquo;
                         </span>{' '}
                         → &ldquo;{inc.transcriptEn}&rdquo;

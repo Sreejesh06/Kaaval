@@ -1,8 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { DetectedPerson, GuardMode, RadarFrame, SemanticPrimitive } from '../types';
+import type {
+  DetectedPerson,
+  GuardMode,
+  RadarFrame,
+  SatelliteTelemetry,
+  SemanticPrimitive,
+} from '../types';
 
 interface Props {
   latestFrameRef: React.MutableRefObject<RadarFrame | null>;
+  satelliteRef?: React.MutableRefObject<SatelliteTelemetry | null>;
   frameSeqRef: React.MutableRefObject<number>;
   guardMode: GuardMode;
   sonarArmed: boolean;
@@ -35,6 +42,7 @@ const PRIMITIVE_LABELS: Record<SemanticPrimitive, string> = {
 
 export const SpatialField3D: React.FC<Props> = ({
   latestFrameRef,
+  satelliteRef,
   frameSeqRef,
   guardMode,
   sonarArmed,
@@ -83,8 +91,13 @@ export const SpatialField3D: React.FC<Props> = ({
 
     const project = (p: Vec3, w: number, h: number): Pt2 => {
       const cam = camRef.current;
-      // Rotate world point around room center (0, 0, 1.45m) for smooth mouse orbit
-      const pivotZ = 1.45;
+      const rawSat = satelliteRef?.current || null;
+      const dualActive = Boolean(rawSat && rawSat.armed && Date.now() - rawSat.updatedAtMs < 4000);
+      // Pull camera back & up automatically when POCO Backside Radar is active so [-2.6m .. +3.0m] fits cleanly!
+      const pivotZ = dualActive ? 0.25 : 1.45;
+      const eyeY = dualActive ? 2.15 : 1.55;
+      const eyeZ = dualActive ? -3.15 : -0.85;
+
       const rx = p.x;
       const rz = p.z - pivotZ;
       const cosY = Math.cos(cam.yaw);
@@ -92,16 +105,13 @@ export const SpatialField3D: React.FC<Props> = ({
       const wx = rx * cosY - rz * sinY;
       const wz = rx * sinY + rz * cosY + pivotZ;
 
-      // Camera eye sits behind & above the laptop at (0, 1.55m, -0.85m)
       const dx = wx;
-      const dy = p.y - 1.55;
-      const dz = wz - (-0.85);
+      const dy = p.y - eyeY;
+      const dz = wz - eyeZ;
 
       const cosP = Math.cos(cam.pitch);
       const sinP = Math.sin(cam.pitch);
-      // Forward depth along camera ray (z=0 -> ~1.4m near; z=3.0m -> ~4.1m far)
       const zCam = dz * cosP - dy * sinP;
-      // Vertical height in camera plane (z=0 -> negative = bottom of screen; z=3.0 -> positive = upper horizon!)
       const yCam = dy * cosP + dz * sinP;
 
       const focal = Math.min(w * 0.72, h * 1.45);
@@ -163,6 +173,10 @@ export const SpatialField3D: React.FC<Props> = ({
             mode === 'EMERGENCY_DISPATCHED';
           subject.collapsed += 0.12 * ((confirmedFall ? 1.0 : 0.0) - subject.collapsed);
 
+          const rawSat = satelliteRef?.current || null;
+          const activeSat =
+            rawSat && rawSat.armed && Date.now() - rawSat.updatedAtMs < 4000 ? rawSat : null;
+
           wavePhase = (wavePhase + 0.014) % 1.0;
           renderObservatory(
             ctx,
@@ -173,6 +187,7 @@ export const SpatialField3D: React.FC<Props> = ({
             gridR,
             gridAz,
             subject,
+            activeSat,
             trail,
             wavePhase,
             mode,
@@ -289,6 +304,7 @@ function renderObservatory(
     motion: number;
     collapsed: number;
   },
+  activeSat: SatelliteTelemetry | null,
   trail: Array<{ x: number; z: number }>,
   wavePhase: number,
   mode: GuardMode,
@@ -297,24 +313,44 @@ function renderObservatory(
   ctx.fillStyle = '#05070a';
   ctx.fillRect(0, 0, w, h);
 
-  // 1. Perspective Room Floor Grid (z = 0m at bottom foreground -> z = 3.0m at upper horizon)
+  const minZ = activeSat ? -2.6 : 0.0;
+
+  // 1. Perspective Room Floor Grid (expands into -Z backside when POCO Satellite is armed!)
   ctx.strokeStyle = '#0f1620';
   ctx.lineWidth = 1;
   for (let x = -2.0; x <= 2.01; x += 0.4) {
-    const a = project({ x, y: 0, z: 0 }, w, h);
+    const a = project({ x, y: 0, z: minZ }, w, h);
     const b = project({ x, y: 0, z: 3.0 }, w, h);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
-  for (let z = 0.5; z <= 3.01; z += 0.5) {
+  for (let z = minZ; z <= 3.01; z += 0.5) {
     const a = project({ x: -2.0, y: 0, z }, w, h);
     const b = project({ x: 2.0, y: 0, z }, w, h);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
+  }
+
+  // POCO Satellite Backside Wavefronts (-Z: -0.40m -> -2.5m)
+  if (activeSat) {
+    for (let k = 0; k < 3; k++) {
+      const rWave = 0.42 + ((wavePhase + k / 3) % 1.0) * 2.1;
+      const alpha = Math.max(0, 0.26 * (1 - (rWave - 0.42) / 2.1));
+      ctx.strokeStyle = `rgba(255, 226, 77, ${alpha.toFixed(3)})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let deg = -36; deg <= 36; deg += 6) {
+        const rad = (deg * Math.PI) / 180;
+        const pt = project({ x: rWave * Math.sin(rad), y: 0.01, z: -rWave * Math.cos(rad) }, w, h);
+        if (deg === -36) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+    }
   }
 
   // Subtle back-wall frame @ z = 3.0m for crisp architectural 3D depth cues
@@ -424,29 +460,39 @@ function renderObservatory(
     ctx.stroke();
   }
 
-  // 6. Clean 3D Multi-Person Presence Silhouettes & Breathing Halo
-  if (armed && subject.targets.length > 0) {
+  // 6. Clean 3D Multi-Person Presence Silhouettes & Breathing Halo (Front + POCO Backside!)
+  const allTargets: DetectedPerson[] = [
+    ...(armed ? subject.targets : []),
+    ...(activeSat ? activeSat.targets : []),
+  ];
+
+  if (allTargets.length > 0) {
     const isEmergency =
       mode === 'EMERGENCY_DISPATCHED' ||
       mode === 'LISTENING_CONSENT' ||
       mode === 'PLAYING_PROMPT';
     const isPrealert = mode === 'ANOMALY_PREALERT';
 
-    subject.targets.forEach((person, idx) => {
+    allTargets.forEach((person, idx) => {
+      const isSat = person.source === 'SATELLITE';
       const isPrimary = idx === 0;
-      const accent = isPrimary
-        ? isEmergency
-          ? '#e11d48'
-          : isPrealert
-          ? '#f59e0b'
-          : '#14b8a6'
+      const accent = isEmergency && isPrimary
+        ? '#e11d48'
+        : isPrealert && isPrimary
+        ? '#f59e0b'
+        : isSat
+        ? '#ffe24d'
+        : isPrimary
+        ? '#14b8a6'
         : '#38bdf8';
-      const accentDim = isPrimary
-        ? isEmergency
-          ? 'rgba(225, 29, 72, 0.22)'
-          : isPrealert
-          ? 'rgba(245, 158, 11, 0.22)'
-          : 'rgba(20, 184, 166, 0.20)'
+      const accentDim = isEmergency && isPrimary
+        ? 'rgba(225, 29, 72, 0.22)'
+        : isPrealert && isPrimary
+        ? 'rgba(245, 158, 11, 0.22)'
+        : isSat
+        ? 'rgba(255, 226, 77, 0.20)'
+        : isPrimary
+        ? 'rgba(20, 184, 166, 0.20)'
         : 'rgba(56, 189, 248, 0.18)';
 
       const px = person.x;
@@ -482,8 +528,9 @@ function renderObservatory(
         ctx.lineTo(headPt.x, headPt.y + 8);
         ctx.stroke();
 
+        const dispSource = isSat && activeSat ? activeSat.displacementMm : subject.dispMm;
         const breathR =
-          0.21 + (isPrimary ? Math.max(-0.06, Math.min(0.06, subject.dispMm * 0.015)) : 0);
+          0.21 + (isPrimary || isSat ? Math.max(-0.06, Math.min(0.06, dispSource * 0.015)) : 0);
         drawHorizontalCircle(ctx, project, px, chestH, pz, breathR, w, h, accent, 1.8);
 
         ctx.fillStyle = '#05070a';
@@ -494,13 +541,18 @@ function renderObservatory(
         ctx.fill();
         ctx.stroke();
 
+        const bpmVal = isSat ? activeSat?.respirationBpm : isPrimary ? subject.bpm : null;
         drawCalloutPill(
           ctx,
           headPt.x,
           headPt.y - 18,
-          `P${idx + 1} · ${person.distanceMeters.toFixed(2)}m${
-            isPrimary && subject.bpm ? ` · ${subject.bpm.toFixed(0)} BPM` : ''
-          }`,
+          isSat
+            ? `B · POCO [${person.zone || 'BACK'}] ${person.distanceMeters.toFixed(2)}m${
+                bpmVal ? ` · ${bpmVal.toFixed(0)} BPM` : ''
+              }`
+            : `F${idx + 1} · ${person.distanceMeters.toFixed(2)}m${
+                bpmVal ? ` · ${bpmVal.toFixed(0)} BPM` : ''
+              }`,
           accent
         );
       } else {
@@ -522,13 +574,13 @@ function renderObservatory(
         );
       }
     });
-  } else if (!armed) {
+  } else if (!armed && !activeSat) {
     ctx.fillStyle = '#ffe24d';
     ctx.font = '500 12.5px "DM Mono", monospace';
     ctx.fillText('Click to arm sonar · 3D stereo FDMA acoustic field', w * 0.5 - 180, h * 0.48);
   }
 
-  // 7. Foreground MacBook Stereo Emitter Bar anchored cleanly at bottom center (z = 0m)
+  // 7. Center MacBook Stereo Emitter Bar (+Z) & POCO M2 Pro Mono Bar (-Z)
   const txL = project({ x: -0.14, y: 0.02, z: 0.06 }, w, h);
   const txR = project({ x: 0.14, y: 0.02, z: 0.06 }, w, h);
   ctx.strokeStyle = '#3ed598';
@@ -540,8 +592,21 @@ function renderObservatory(
 
   ctx.fillStyle = '#cbbce0';
   ctx.font = '10px "DM Mono", monospace';
-  ctx.fillText('TX-L 17.6–18.8k', txL.x - 102, txL.y + 4);
-  ctx.fillText('TX-R 19.0–20.2k', txR.x + 10, txR.y + 4);
+  ctx.fillText(activeSat ? 'TX-L 18.6–19.4k' : 'TX-L 17.6–18.8k', txL.x - 104, txL.y + 4);
+  ctx.fillText(activeSat ? 'TX-R 19.5–20.3k' : 'TX-R 19.0–20.2k', txR.x + 10, txR.y + 4);
+
+  if (activeSat) {
+    const pocoL = project({ x: -0.07, y: 0.02, z: -0.08 }, w, h);
+    const pocoR = project({ x: 0.07, y: 0.02, z: -0.08 }, w, h);
+    ctx.strokeStyle = '#ffe24d';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(pocoL.x, pocoL.y);
+    ctx.lineTo(pocoR.x, pocoR.y);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe24d';
+    ctx.fillText(`POCO ${activeSat.zone} 17.6–18.4k`, pocoR.x + 10, pocoR.y + 12);
+  }
 }
 
 function drawFloorCircle(

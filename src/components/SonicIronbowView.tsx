@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { DetectedPerson, GuardMode, RadarFrame } from '../types';
+import type { DetectedPerson, GuardMode, RadarFrame, SatelliteTelemetry } from '../types';
 
 interface Props {
   latestFrameRef: React.MutableRefObject<RadarFrame | null>;
+  satelliteRef?: React.MutableRefObject<SatelliteTelemetry | null>;
   frameSeqRef: React.MutableRefObject<number>;
   guardMode: GuardMode;
   sonarArmed: boolean;
@@ -119,6 +120,7 @@ function humanAcousticField(
 
 export const SonicIronbowView: React.FC<Props> = ({
   latestFrameRef,
+  satelliteRef,
   frameSeqRef,
   guardMode,
   sonarArmed,
@@ -183,6 +185,10 @@ export const SonicIronbowView: React.FC<Props> = ({
     const render = (nowMs: number) => {
       const seq = frameSeqRef.current;
       const rf = latestFrameRef.current;
+      const rawSat = satelliteRef?.current || null;
+      const activeSat =
+        rawSat && rawSat.armed && Date.now() - rawSat.updatedAtMs < 4000 ? rawSat : null;
+
       if (rf && seq !== lastSeq) {
         lastSeq = seq;
         state.targets = rf.targets || [];
@@ -194,21 +200,29 @@ export const SonicIronbowView: React.FC<Props> = ({
         state.metersPerSample = rf.metersPerSample;
         state.gridR = rf.spatialRangeSlices;
         state.gridAz = rf.spatialAzimuthBins;
+      }
 
-        if (nowMs - lastHudMs > 180) {
-          lastHudMs = nowMs;
-          const cnt = state.targets.length;
-          const summary =
-            cnt === 0
-              ? '0 DETECTED (EMPTY CABIN)'
-              : state.targets
-                  .map(
-                    (t, idx) =>
-                      `P${idx + 1} ${t.distanceMeters.toFixed(2)}m (${t.azimuthDeg >= 0 ? '+' : ''}${t.azimuthDeg.toFixed(0)}°)`
-                  )
-                  .join(' · ');
-          setHeaderInfo({ count: cnt, summary });
-        }
+      if (nowMs - lastHudMs > 180) {
+        lastHudMs = nowMs;
+        const frontTargets = armedRef.current ? state.targets : [];
+        const satTargets = activeSat ? activeSat.targets : [];
+        const cnt = frontTargets.length + satTargets.length;
+        const parts: string[] = [];
+        frontTargets.forEach((t, idx) => {
+          parts.push(
+            `F${idx + 1} ${t.distanceMeters.toFixed(2)}m (${t.azimuthDeg >= 0 ? '+' : ''}${t.azimuthDeg.toFixed(0)}°)`
+          );
+        });
+        satTargets.forEach((t, idx) => {
+          parts.push(`B${idx + 1} [${activeSat?.zone}] ${t.distanceMeters.toFixed(2)}m`);
+        });
+        const summary =
+          cnt === 0
+            ? activeSat
+              ? '0 DETECTED (360° DUAL-NODE CLEAR)'
+              : '0 DETECTED (EMPTY CABIN)'
+            : parts.join(' · ');
+        setHeaderInfo({ count: cnt, summary });
       }
 
       const canvas = canvasRef.current;
@@ -232,29 +246,46 @@ export const SonicIronbowView: React.FC<Props> = ({
       const horizonY = Math.floor(GRID_H * 0.36);
       const breathMod = Math.max(-0.06, Math.min(0.06, state.dispMm * 0.016));
 
+      // Combine Front Laptop targets + POCO Satellite targets for unified Ironbow projection
+      const combinedTargets: Array<{ t: DetectedPerson; isSat: boolean }> = [
+        ...(armed ? state.targets.map((t) => ({ t, isSat: false })) : []),
+        ...(activeSat ? activeSat.targets.map((t) => ({ t, isSat: true })) : []),
+      ];
+
       // Precompute screen projections for all detected people (sorted back-to-front)
-      const projectedPeople = armed
-        ? state.targets
-            .slice()
-            .sort((a, b) => b.distanceMeters - a.distanceMeters)
-            .map((t, idx) => {
-              const normDist = Math.max(0, Math.min(1, (t.distanceMeters - 0.32) / (3.0 - 0.32)));
-              const footY = GRID_H - 10 - normDist * (GRID_H - horizonY - 20);
-              const perspScale = 1.42 / (0.60 + normDist * 1.45);
-              const cx = GRID_W * (0.5 + (t.azimuthDeg / 112) * 0.85);
-              const flare = Math.min(0.20, t.motion * 0.045);
-              const isPrimary = idx === state.targets.length - 1;
-              return {
-                person: t,
-                cx,
-                footY,
-                perspScale,
-                flare,
-                collapsed: isPrimary ? state.collapsed : 0,
-                breath: isPrimary ? breathMod : 0,
-              };
-            })
-        : [];
+      const projectedPeople = combinedTargets
+        .slice()
+        .sort((a, b) => b.t.distanceMeters - a.t.distanceMeters)
+        .map(({ t, isSat }, idx) => {
+          const normDist = Math.max(0, Math.min(1, (t.distanceMeters - 0.32) / (3.0 - 0.32)));
+          const footY = GRID_H - 10 - normDist * (GRID_H - horizonY - 20);
+          const perspScale = (isSat ? 1.24 : 1.42) / (0.60 + normDist * 1.45);
+          let lateralAz = t.azimuthDeg;
+          if (isSat) {
+            // Offset backside targets slightly right-of-center so they never overlap a dead-center front person
+            if (t.zone === 'BACK') lateralAz = 34;
+            else if (t.zone === 'OPPOSITE') lateralAz = -34;
+            else if (t.zone === 'LEFT') lateralAz = -48;
+            else if (t.zone === 'RIGHT') lateralAz = 48;
+          }
+          const cx = GRID_W * (0.5 + (lateralAz / 112) * 0.85);
+          const flare = Math.min(0.20, t.motion * 0.045);
+          const isPrimary = idx === combinedTargets.length - 1;
+          const satBreath =
+            isSat && activeSat
+              ? Math.max(-0.06, Math.min(0.06, activeSat.displacementMm * 0.016))
+              : breathMod;
+          return {
+            person: t,
+            isSat,
+            cx,
+            footY,
+            perspScale,
+            flare,
+            collapsed: isPrimary ? state.collapsed : 0,
+            breath: isPrimary ? satBreath : 0,
+          };
+        });
 
       const dst = imgData.data;
       const ambNorm = 1 / (state.directMag * 0.50 + 1e-6);
@@ -346,31 +377,44 @@ export const SonicIronbowView: React.FC<Props> = ({
 
       drawRoomPerspectiveGuides(ctx, W, H, (horizonY / GRID_H) * H);
 
-      // Draw crisp reticle + callout for EVERY detected person in the cabin
+      // Draw crisp reticle + callout for EVERY detected person in Front & Backside zones
       projectedPeople.forEach((pr, idx) => {
         const dispCx = (pr.cx / GRID_W) * W;
         const dispFootY = (pr.footY / GRID_H) * H;
         const boxW = (pr.collapsed > 0.5 ? 190 : 108) * pr.perspScale;
         const boxH = (pr.collapsed > 0.5 ? 74 : 235) * pr.perspScale;
-        drawReticle(ctx, dispCx - boxW * 0.5, dispFootY - boxH, boxW, boxH, mode);
+        drawReticle(ctx, dispCx - boxW * 0.5, dispFootY - boxH, boxW, boxH, mode, pr.isSat);
 
         const rank = projectedPeople.length - idx;
-        const bpmSuffix = rank === 1 && state.bpm ? ` · ${state.bpm.toFixed(0)} BPM` : '';
-        const label = `P${rank} · ${pr.person.distanceMeters.toFixed(2)}m · ${
-          pr.person.azimuthDeg >= 0 ? '+' : ''
-        }${pr.person.azimuthDeg.toFixed(0)}°${bpmSuffix}`;
-        drawCallout(ctx, dispCx, Math.max(28, dispFootY - boxH - 8), label);
+        const activeBpm = pr.isSat ? activeSat?.respirationBpm : state.bpm;
+        const bpmSuffix = activeBpm ? ` · ${activeBpm.toFixed(0)} BPM` : '';
+        const label = pr.isSat
+          ? `B${rank} [${pr.person.zone || 'BACK'} · POCO] · ${pr.person.distanceMeters.toFixed(2)}m${bpmSuffix}`
+          : `F${rank} · ${pr.person.distanceMeters.toFixed(2)}m · ${
+              pr.person.azimuthDeg >= 0 ? '+' : ''
+            }${pr.person.azimuthDeg.toFixed(0)}°${bpmSuffix}`;
+        drawCallout(ctx, dispCx, Math.max(28, dispFootY - boxH - 8), label, pr.isSat);
       });
 
-      if (!armed) {
-        ctx.fillStyle = 'rgba(22, 18, 28, 0.88)';
-        ctx.fillRect(W * 0.5 - 235, H * 0.5 - 23, 470, 42);
-        ctx.strokeStyle = '#ffe24d';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(W * 0.5 - 235, H * 0.5 - 23, 470, 42);
+      if (activeSat || armed) {
+        drawWholeRoomMiniRadar(ctx, armed ? state.targets : [], activeSat, armed);
+      }
+
+      if (!armed && !activeSat) {
+        ctx.fillStyle = 'rgba(14, 11, 22, 0.86)';
+        ctx.beginPath();
+        ctx.roundRect(W * 0.5 - 220, H * 0.5 - 21, 440, 42, 21);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(41, 88, 212, 0.78)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
         ctx.fillStyle = '#ffe24d';
+        ctx.beginPath();
+        ctx.arc(W * 0.5 - 196, H * 0.5, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f5f3fa';
         ctx.font = '500 12.5px "DM Mono", monospace';
-        ctx.fillText('Click to arm sonar · OS-CFAR multi-person acoustic imager', W * 0.5 - 214, H * 0.5 + 3);
+        ctx.fillText('Click anywhere to arm 20 kHz multi-person sonar', W * 0.5 - 182, H * 0.5 + 4);
       }
 
       drawColorbar(ctx, W, H);
@@ -462,7 +506,8 @@ function drawReticle(
   y: number,
   w: number,
   h: number,
-  mode: GuardMode
+  mode: GuardMode,
+  isSat = false
 ) {
   const c = 12;
   ctx.strokeStyle =
@@ -470,8 +515,10 @@ function drawReticle(
       ? '#ff6fb1'
       : mode === 'ANOMALY_PREALERT'
       ? '#ffe24d'
+      : isSat
+      ? '#3ed598'
       : 'rgba(253, 255, 182, 0.88)';
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = isSat ? 2.2 : 1.8;
   ctx.beginPath();
   ctx.moveTo(x, y + c); ctx.lineTo(x, y); ctx.lineTo(x + c, y);
   ctx.moveTo(x + w - c, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + c);
@@ -480,18 +527,121 @@ function drawReticle(
   ctx.stroke();
 }
 
-function drawCallout(ctx: CanvasRenderingContext2D, cx: number, y: number, text: string) {
+function drawCallout(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  y: number,
+  text: string,
+  isSat = false
+) {
   ctx.font = '500 11px "DM Mono", monospace';
   const tw = ctx.measureText(text).width;
   const bw = tw + 16;
   const bh = 21;
   ctx.fillStyle = 'rgba(22, 18, 28, 0.92)';
   ctx.fillRect(cx - bw * 0.5, y - bh, bw, bh);
-  ctx.strokeStyle = '#ffe24d';
+  ctx.strokeStyle = isSat ? '#3ed598' : '#ffe24d';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(cx - bw * 0.5, y - bh, bw, bh);
-  ctx.fillStyle = '#fff4c1';
+  ctx.fillStyle = isSat ? '#a7f3d0' : '#fff4c1';
   ctx.fillText(text, cx - tw * 0.5, y - 6);
+}
+
+function drawWholeRoomMiniRadar(
+  ctx: CanvasRenderingContext2D,
+  frontTargets: DetectedPerson[],
+  sat: SatelliteTelemetry | null,
+  laptopArmed: boolean
+) {
+  const x0 = 14;
+  const y0 = 14;
+  const size = 166;
+  const cx = x0 + size * 0.5;
+  const cy = y0 + size * 0.52;
+  const maxR = size * 0.40;
+
+  ctx.fillStyle = 'rgba(14, 10, 22, 0.88)';
+  ctx.fillRect(x0, y0, size, size);
+  ctx.strokeStyle = sat ? '#3ed598' : 'rgba(195, 145, 220, 0.45)';
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(x0, y0, size, size);
+
+  ctx.fillStyle = '#fff4c1';
+  ctx.font = '500 9.5px "DM Mono", monospace';
+  ctx.fillText(sat ? '360° LAPTOP + POCO' : 'TOP-DOWN CONE (+Z)', x0 + 8, y0 + 13);
+
+  ctx.strokeStyle = 'rgba(195, 145, 220, 0.22)';
+  ctx.lineWidth = 1;
+  for (const frac of [0.5, 1.0]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR * frac, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  if (laptopArmed) {
+    ctx.fillStyle = 'rgba(41, 88, 212, 0.24)';
+    ctx.strokeStyle = 'rgba(96, 165, 250, 0.7)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, maxR, ((-90 - 52) * Math.PI) / 180, ((-90 + 52) * Math.PI) / 180);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (sat) {
+    let centerDeg = 90;
+    if (sat.zone === 'OPPOSITE') centerDeg = -90;
+    else if (sat.zone === 'LEFT') centerDeg = 180;
+    else if (sat.zone === 'RIGHT') centerDeg = 0;
+
+    const beamOriginX = cx;
+    const beamOriginY = sat.zone === 'OPPOSITE' ? cy - maxR : cy;
+    const drawAngle = sat.zone === 'OPPOSITE' ? 90 : centerDeg;
+
+    ctx.fillStyle = 'rgba(62, 213, 152, 0.22)';
+    ctx.strokeStyle = 'rgba(62, 213, 152, 0.85)';
+    ctx.beginPath();
+    ctx.moveTo(beamOriginX, beamOriginY);
+    ctx.arc(
+      beamOriginX,
+      beamOriginY,
+      maxR * (2.6 / 3.0),
+      ((drawAngle - 34) * Math.PI) / 180,
+      ((drawAngle + 34) * Math.PI) / 180
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#ffe24d';
+  ctx.fillRect(cx - 8, cy - 2, 16, 4);
+
+  frontTargets.forEach((t) => {
+    const px = cx + (t.x / 3.0) * maxR;
+    const py = cy - (t.z / 3.0) * maxR;
+    ctx.fillStyle = '#ffe24d';
+    ctx.beginPath();
+    ctx.arc(px, py, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  if (sat) {
+    sat.targets.forEach((t) => {
+      const px = cx + (t.x / 3.0) * maxR;
+      const py = cy - (t.z / 3.0) * maxR;
+      ctx.fillStyle = '#3ed598';
+      ctx.beginPath();
+      ctx.arc(px, py, 4.8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  ctx.fillStyle = 'rgba(255, 244, 193, 0.65)';
+  ctx.font = '8.5px "DM Mono", monospace';
+  ctx.fillText('FRONT +Z', cx - 21, y0 + 24);
+  ctx.fillText(sat ? `POCO ${sat.zone}` : 'BACK BLIND', cx - 24, y0 + size - 5);
 }
 
 function drawColorbar(ctx: CanvasRenderingContext2D, w: number, h: number) {
